@@ -163,6 +163,20 @@ Run on the demo on 27 September 2026: 3,000 tiddlers created through the API, th
 
 **Conclusion.** Once loaded, the wiki stays responsive with thousands of tiddlers. The weak spot was start-up: the whole text was loaded before anything showed, so sign-in time grew with the size of the wiki (about 0.6 s per MB). Since then tiddler text is loaded on demand, see [Loading on demand](#loading-on-demand).
 
+**After loading on demand**, same 3,000 tiddlers, same machine:
+
+| What | Before | After |
+| --- | --- | --- |
+| Data at sign-in | 12.8 MB in 13 pages | 1.46 MB in 2 pages, plus 13 KB of text for the open tiddlers |
+| Sign-in until the page shows | 7.3 s | 4.3–4.6 s (three runs) |
+| Opening a tiddler not seen yet | 190 ms, text already there | 160–200 ms, one request for its text |
+| Search over all text | 30–250 ms in the browser | titles and tags at once; text 2.6 s on the server |
+| `<<todo>>` over 11,466 tasks | 0.1–0.8 s | 3.9 s on the server |
+| Backlinks, Missing tab (50), All tab (3,000) | from the texts | from the stored links, same results |
+| JavaScript heap | 25 MB | 8 MB |
+
+Sign-in now grows with the number of tiddlers rather than with their text: the list is about 0.5 KB a tiddler, most of it the titles each one links to. Full-text search and `<<todo>>` are slower because they read the whole table on the server instead of text already in memory.
+
 One automated run stopped responding to a mouse click after the `<<todo>>` step. The same steps, repeated one by one and as a whole, took 24–780 ms each, and the stall has not come back.
 
 ## Limits
