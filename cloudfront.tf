@@ -179,6 +179,7 @@ resource "aws_cloudfront_distribution" "web" {
   #checkov:skip=CKV_AWS_86:Legacy CloudFront access logs need a bucket ACL. API Gateway and Lambda log to CloudWatch instead.
   #checkov:skip=CKV_AWS_305:Geo restriction is not required for this private app.
   #checkov:skip=CKV_AWS_174:The default CloudFront certificate does not allow choosing the TLS policy.
+  #checkov:skip=CKV2_AWS_42:The demo runs on the *.cloudfront.net address with its default certificate, without a domain of its own.
   provider            = aws.global
   enabled             = true
   is_ipv6_enabled     = true
