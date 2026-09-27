@@ -6,7 +6,7 @@ Notes are *tiddlers*: a title, text and tags. Open tiddlers form a story river; 
 
 ## Demo
 
-**https://DEMO_DOMAIN**
+**https://d1grd9lz4vxssg.cloudfront.net**
 
 Sign in with `admin@example.com` / `admin123` (the fields are filled in for you).
 
