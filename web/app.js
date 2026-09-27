@@ -16,8 +16,8 @@
   const SHADOWS = {
     "$:/SiteTitle": t("Вики"),
     "$:/SiteSubtitle": t("заметки, которые ссылаются друг на друга"),
-    "$:/DefaultTiddlers": "[[$:/Разметка]]",
-    "$:/Разметка": I18n.help(),
+    "$:/DefaultTiddlers": "[[$:/Markup]]",
+    "$:/Markup": I18n.help(),
   };
 
   const state = {
