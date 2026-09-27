@@ -529,9 +529,14 @@
   const taskSaves = new Map();
   const taskSaved = new Map();
 
+  // Cards being edited keep their editor; only an open preview in them is
+  // drawn again, so a text or task list that arrived late shows up there too.
   function refreshViews() {
     state.story.forEach((title) => {
       if (!state.drafts.has(title)) replaceCard(title);
+    });
+    document.querySelectorAll(".tiddler.editing .preview:not(.hidden)").forEach((box) => {
+      if (box.redraw) box.redraw();
     });
   }
 
@@ -1160,6 +1165,7 @@
     function drawPreview() {
       previewBox.replaceChildren(renderText({ title: draft.title, text: draft.text, type: draft.type, tags: draft.tags }));
     }
+    previewBox.redraw = drawPreview;
     function togglePreview() {
       preview = !preview;
       previewBox.classList.toggle("hidden", !preview);
