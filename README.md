@@ -130,6 +130,29 @@ The defaults set up the public demo. For a private wiki, change them in a `terra
 | `cloudfront/api_host.js` | CloudFront function that passes the site address to the API for the file cookie |
 | `.github/workflows/` | CI and deployment |
 
+## Stress test
+
+Run on the demo on 27 September 2026: 3,000 tiddlers created through the API, then the interface measured in headless Chrome on a MacBook over a home connection.
+
+**Data.** 3,000 tiddlers, 11.7 MB of text: most 0.5–3 KB, 9 % 5–20 KB, 1 % 50–100 KB; 40 tags, 10 % Markdown, headings, lists, tables, code, 11,490 open tasks, links between tiddlers and to 50 missing pages, 156 tiddlers with `{{transclusion}}`.
+
+| What | Result |
+| --- | --- |
+| Creating 3,000 tiddlers, 8 parallel writers | 150 s, 0 failures. 20 saves/s: the API Gateway stage limit (`throttling_rate_limit = 20`); 590 requests got 429 and succeeded on retry |
+| Save latency | p50 224 ms, p95 330 ms, max 3.8 s (a retry wait) |
+| Full list for the browser | 13 pages of about 1 MB, 12.8 MB of JSON (4.6 MB gzip), 7.2–7.7 s, fetched one page after another |
+| Sign-in until the story shows | 7.3 s, almost all of it waiting for those pages; script time under 0.5 s |
+| Search over all text | 30–250 ms per keystroke |
+| Sidebar tabs: All (3,000 rows), Tags, Missing | 13–80 ms |
+| Open the biggest tiddler (100 KB) / edit it | 190 ms / 100 ms |
+| `<<todo>>` over the whole wiki (11,490 tasks) | 0.1–0.8 s |
+| Worst transclusion tree | 6 renders: the depth limit keeps `{{…}}` from exploding |
+| JavaScript heap after the test | 25 MB |
+
+**Conclusion.** Once loaded, the wiki stays responsive with thousands of tiddlers. The weak spot is start-up: the whole text is loaded before anything shows, so sign-in time grows with the size of the wiki (about 0.6 s per MB). Loading tiddler text only when a tiddler is opened is the next step.
+
+One automated run stopped responding to a mouse click after the `<<todo>>` step. The same steps, repeated one by one and as a whole, took 24–780 ms each, and the stall has not come back.
+
 ## Limits
 
 - Everyone signed in sees and edits every tiddler; there are no per-page permissions.
