@@ -103,7 +103,7 @@ resource "aws_lambda_function" "reset" {
   #checkov:skip=CKV_AWS_272:Code signing is not used here.
   function_name = "${local.name}-reset"
   role          = aws_iam_role.reset.arn
-  runtime       = "python3.12"
+  runtime       = "python3.14"
   architectures = ["arm64"]
   handler       = "reset.handler"
   memory_size   = 256

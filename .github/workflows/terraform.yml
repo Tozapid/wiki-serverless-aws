@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Unit tests
         run: |
           pip install --quiet boto3
@@ -57,7 +57,7 @@ jobs:
       # The parity test runs the Lambda link and task rules next to the page's.
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

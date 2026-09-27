@@ -20,7 +20,7 @@ resource "aws_lambda_function" "api" {
   #checkov:skip=CKV_AWS_272:Code signing is not used for this internal function.
   function_name = "${local.name}-api"
   role          = aws_iam_role.lambda.arn
-  runtime       = "python3.12"
+  runtime       = "python3.14"
   architectures = ["arm64"]
   handler       = "lambda_app.handler"
   memory_size   = 256

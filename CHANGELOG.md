@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Both Lambda functions (API and demo reset) run on `python3.14` instead of `python3.12`; CI tests them on Python 3.14.
 - The text of a tiddler is loaded when the tiddler is opened. Sign-in gets a list without text: 1.46 MB instead of 12.8 MB for 3,000 tiddlers, 4.4 s instead of 7.3 s.
 - Links of each tiddler are worked out on save and kept in the table. Backlinks and the Missing tab use them. Tiddlers saved before get their links on the first listing.
 - Full-text search and `<<todo>>` run on the server. Titles and tags are still searched at once in the browser.
