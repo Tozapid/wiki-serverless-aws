@@ -113,4 +113,5 @@ jobs:
       - name: terraform apply
         run: terraform apply -no-color tfplan
       - name: Site address
-        run: echo "Site: $(terraform output -raw site_url)" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Site: $(terraform output -raw site_url)" >> "$GITHUB_STEP_SUMMARY"
