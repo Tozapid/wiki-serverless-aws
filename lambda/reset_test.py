@@ -141,8 +141,9 @@ class ResetTest(unittest.TestCase):
         self.assertGreater(int(plans["size"]["N"]), 0)
 
     def test_example_files_exist(self):
-        used = {path for t in self.seed for path in re.findall(r"/files/seed/([^\]\s|]+)", t["text"])}
-        self.assertTrue(used)
+        used = {path for t in self.seed for path in re.findall(r"/files/seed/([^\]\s|\"]+)", t["text"])}
+        self.assertIn("philippe-gauthier-eaOjEz8746k-unsplash.webp", used)
+        self.assertIn("philippe-gauthier-eaOjEz8746k-unsplash.jpg", used)
         self.assertLessEqual(used, set(os.listdir(os.path.join(SEED, "files"))))
         for t in self.seed:
             for target in re.findall(r"\[\[(?:[^|\]]*\|)?([^\]]+)\]\]", t["text"]):

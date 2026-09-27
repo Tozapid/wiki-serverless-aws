@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- The example photo showed the 5.6 MB original. It now shows a 1920 px WebP copy made by the page's own upload code, and the original opens on click, as with an uploaded photo.
 - An open preview in the editor stayed at "Loading…" when a text or the task list arrived after it was drawn.
 - A tiddler deleted on the server while its text was being loaded was asked for again on every redraw.
 - The last step of the GitHub Actions workflow did not parse as YAML, so the first run did not start.

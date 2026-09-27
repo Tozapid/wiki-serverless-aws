@@ -21,7 +21,7 @@
       "Media"
     ],
     "type": "text/vnd.tiddlywiki",
-    "text": "[img[Oranges on a tree against a blue sky|/files/seed/philippe-gauthier-eaOjEz8746k-unsplash.jpg]]\n\nClick the photo to see it in full.\n\nPhoto by Philippe Gauthier on [[Unsplash|https://unsplash.com/photos/eaOjEz8746k]]."
+    "text": "[img full=\"/files/seed/philippe-gauthier-eaOjEz8746k-unsplash.jpg\" [Oranges on a tree against a blue sky|/files/seed/philippe-gauthier-eaOjEz8746k-unsplash.webp]]\n\nThe page shows a 1920 px WebP copy; click the photo for the original. An uploaded photo gets the same pair.\n\nPhoto by Philippe Gauthier on [[Unsplash|https://unsplash.com/photos/eaOjEz8746k]]."
   },
   {
     "title": "How this wiki is built",
