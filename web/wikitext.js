@@ -232,6 +232,7 @@
   function todoNode(ctx, tag) {
     if (!ctx.allTasks) return el("code", { class: "macro-error" }, "<<todo>>");
     const groups = ctx.allTasks(tag);
+    if (groups === null) return el("p", { class: "muted" }, t("Загружаю…"));
     if (!groups.length) return el("p", { class: "muted" }, tag ? t("С тегом «{tag}» открытых задач нет", { tag }) : t("Открытых задач нет"));
     return el("div", { class: "todo" }, groups.map((group) => el("section", { class: "todo-group" }, [
       el("h4", {}, internalLink(ctx, group.title, group.title)),
@@ -250,6 +251,11 @@
     }
     const tiddler = ctx.get(title);
     if (!tiddler) return internalLink(ctx, title, "{{" + title + "}}");
+    if (typeof tiddler.text !== "string") {
+      // Not loaded yet: ask for it and show a placeholder until it comes.
+      if (ctx.need) ctx.need(title);
+      return el(block ? "div" : "span", { class: "transclusion muted", "data-from": title }, t("Загружаю…"));
+    }
     const inner = Object.assign({}, ctx, { stack: ctx.stack.concat(title), taskCounter: { n: 0 } });
     const node = el(block ? "div" : "span", { class: "transclusion", "data-from": title });
     node.append(render(tiddler.text, tiddler.type, inner, !block));

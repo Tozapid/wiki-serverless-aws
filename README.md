@@ -25,6 +25,18 @@ The demo is public and wiped every hour: all tiddlers, drafts, uploaded files an
 
 Text is never parsed as HTML: the page builds DOM nodes itself, and uploaded files are served with a sandboxing Content-Security-Policy.
 
+### Loading on demand
+
+At sign-in the page gets the list of tiddlers without their text: title, tags, dates, authors, `etag`, size and the titles each tiddler links to. The text of a tiddler is loaded when it is opened; open tiddlers, `{{transclusions}}` and texts needed for an edit come in batches of up to 100. The list comes from a DynamoDB index that holds everything but the text.
+
+What used to need every text works without it:
+
+- backlinks and the Missing tab use the links the server works out on every save (`links`; tiddlers saved before get them on the first listing);
+- search matches titles, tags and the texts already loaded at once, and the server searches every text 300 ms after typing stops;
+- `<<todo>>` asks the server for the open tasks; a tick from the summary loads that tiddler's text and saves it.
+
+The server and the page use the same rules for links and tasks (`extract_links` and `scan_tasks` in `lambda_app.py`, `links` and `tasks` in `wikitext.js`).
+
 ## Architecture
 
 ```mermaid
@@ -149,12 +161,12 @@ Run on the demo on 27 September 2026: 3,000 tiddlers created through the API, th
 | Worst transclusion tree | 6 renders: the depth limit keeps `{{…}}` from exploding |
 | JavaScript heap after the test | 25 MB |
 
-**Conclusion.** Once loaded, the wiki stays responsive with thousands of tiddlers. The weak spot is start-up: the whole text is loaded before anything shows, so sign-in time grows with the size of the wiki (about 0.6 s per MB). Loading tiddler text only when a tiddler is opened is the next step.
+**Conclusion.** Once loaded, the wiki stays responsive with thousands of tiddlers. The weak spot was start-up: the whole text was loaded before anything showed, so sign-in time grew with the size of the wiki (about 0.6 s per MB). Since then tiddler text is loaded on demand, see [Loading on demand](#loading-on-demand).
 
 One automated run stopped responding to a mouse click after the `<<todo>>` step. The same steps, repeated one by one and as a whole, took 24–780 ms each, and the stall has not come back.
 
 ## Limits
 
 - Everyone signed in sees and edits every tiddler; there are no per-page permissions.
-- The whole wiki is loaded into the browser at sign-in, as in TiddlyWiki. That is fine for thousands of tiddlers, not for millions.
+- The list of all tiddlers (without text) is loaded at sign-in, and full-text search and `<<todo>>` scan the whole table. That is fine for tens of thousands of tiddlers, not for millions.
 - The Cognito invitation email has one language for the whole pool.

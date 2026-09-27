@@ -26,10 +26,13 @@ resource "aws_dynamodb_table" "tiddlers" {
   }
 
   global_secondary_index {
-    name            = "tiddlers"
-    hash_key        = "gsi1pk"
-    range_key       = "gsi1sk"
-    projection_type = "ALL"
+    name      = "tiddlers"
+    hash_key  = "gsi1pk"
+    range_key = "gsi1sk"
+    # Everything but the text: the page lists tiddlers at sign-in and loads a
+    # text only when that tiddler is opened.
+    projection_type    = "INCLUDE"
+    non_key_attributes = ["title", "tags", "type", "created", "creator", "modified", "modifier", "etag", "links", "size"]
   }
 
   point_in_time_recovery {

@@ -183,7 +183,8 @@
     "Задача: {task}": "Task: {task}",
     "Демо: {email} / {password}.": "Demo: {email} / {password}.",
     "Все данные и пользователи стираются каждый час.": "All data and users are wiped every hour.",
-    "Пользователь {email} создан, письмо не отправлялось. Передайте ему временный пароль:": "User {email} created; no email was sent. Pass on the temporary password:"
+    "Пользователь {email} создан, письмо не отправлялось. Передайте ему временный пароль:": "User {email} created; no email was sent. Pass on the temporary password:",
+    "Ищу в тексте статей…": "Searching the text of all tiddlers…"
   };
   const FR = {
     "Вики-разметка": "Balisage wiki",
@@ -362,7 +363,8 @@
     "Задача: {task}": "Tâche : {task}",
     "Демо: {email} / {password}.": "Démo : {email} / {password}.",
     "Все данные и пользователи стираются каждый час.": "Toutes les données et les utilisateurs sont effacés toutes les heures.",
-    "Пользователь {email} создан, письмо не отправлялось. Передайте ему временный пароль:": "Utilisateur {email} créé, aucun e-mail envoyé. Transmettez-lui le mot de passe temporaire :"
+    "Пользователь {email} создан, письмо не отправлялось. Передайте ему временный пароль:": "Utilisateur {email} créé, aucun e-mail envoyé. Transmettez-lui le mot de passe temporaire :",
+    "Ищу в тексте статей…": "Recherche dans le texte des tiddlers…"
   };
   const IT = {
     "Вики-разметка": "Markup wiki",
@@ -541,7 +543,8 @@
     "Задача: {task}": "Attività: {task}",
     "Демо: {email} / {password}.": "Demo: {email} / {password}.",
     "Все данные и пользователи стираются каждый час.": "Tutti i dati e gli utenti vengono cancellati ogni ora.",
-    "Пользователь {email} создан, письмо не отправлялось. Передайте ему временный пароль:": "Utente {email} creato, nessuna email inviata. Comunicagli la password temporanea:"
+    "Пользователь {email} создан, письмо не отправлялось. Передайте ему временный пароль:": "Utente {email} creato, nessuna email inviata. Comunicagli la password temporanea:",
+    "Ищу в тексте статей…": "Cerco nel testo dei tiddler…"
   };
   const DICTIONARIES = { en: EN, fr: FR, it: IT };
   const COUNTS = {

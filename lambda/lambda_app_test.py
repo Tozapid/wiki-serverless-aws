@@ -36,6 +36,14 @@ class FakeTable:
     def delete_item(self, Key):
         self.items.pop((Key["pk"], Key["sk"]), None)
 
+    def update_item(self, Key, UpdateExpression, ConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues):
+        item = self.items[(Key["pk"], Key["sk"])]
+        if item.get("etag") != ExpressionAttributeValues[":e"]:
+            raise ConditionFailed()
+        item[ExpressionAttributeNames["#l"]] = ExpressionAttributeValues[":l"]
+        item[ExpressionAttributeNames["#s"]] = ExpressionAttributeValues[":s"]
+        self.updates = getattr(self, "updates", 0) + 1
+
     def scan(self, **kwargs):
         condition = kwargs.get("FilterExpression")
         return {"Items": [item for item in self.items.values() if condition is None or key_match(condition, item)]}
@@ -46,6 +54,9 @@ class FakeTable:
         items.sort(key=lambda item: item[sort], reverse=not kwargs.get("ScanIndexForward", True))
         if kwargs.get("Select") == "COUNT":
             return {"Count": len(items)}
+        if kwargs.get("IndexName"):
+            # The index holds everything but the text.
+            items = [{k: v for k, v in item.items() if k != "text"} for item in items]
         return {"Items": items[:kwargs.get("Limit", len(items))]}
 
 
@@ -120,6 +131,17 @@ class ClientError(Exception):
         self.response = {"Error": {"Code": code}}
 
 
+class FakeResource:
+    def __init__(self, table):
+        self.table = table
+
+    def batch_get_item(self, RequestItems):
+        (name, request), = RequestItems.items()
+        assert len(request["Keys"]) <= 100
+        found = [dict(self.table.items[(k["pk"], k["sk"])]) for k in request["Keys"] if (k["pk"], k["sk"]) in self.table.items]
+        return {"Responses": {name: found}}
+
+
 class ConditionFailed(Exception):
     response = {"Error": {"Code": "TransactionCanceledException"}, "CancellationReasons": [{"Code": "ConditionalCheckFailed"}]}
 
@@ -182,6 +204,44 @@ class WikiApiTest(unittest.TestCase):
         self.table = FakeTable()
         lambda_app._table = self.table
         lambda_app._ddb = FakeDynamo(self.table)
+        lambda_app._resource = FakeResource(self.table)
+
+    def test_list_has_no_text_and_texts_load_in_batches(self):
+        call("PUT", "/api/tiddler", {"title": "Главная", "text": "См. [[Дом]], {{Вставка||tpl}} и [[сайт|https://x.org]]. `[[не ссылка]]`"})
+        call("PUT", "/api/tiddler", {"title": "Дом", "text": "* [ ] купить хлеб\n* [x] позвонить\n```\n* [ ] в коде\n```", "tags": ["быт"]})
+        call("PUT", "/api/tiddler", {"title": "Заметка", "text": "- [ ] md task\n[текст](Главная)", "type": "text/markdown"})
+        items = {t["title"]: t for t in call("GET", "/api/tiddlers")[1]["items"]}
+        self.assertNotIn("text", items["Главная"])
+        self.assertEqual(items["Главная"]["links"], ["Вставка", "Дом"])
+        self.assertEqual(items["Заметка"]["links"], ["Главная"])
+        self.assertGreater(items["Дом"]["size"], 20)
+        status, got = call("POST", "/api/tiddlers/get", {"titles": ["Дом", "Нет такого", "Главная"]})
+        self.assertEqual(status, 200)
+        self.assertEqual(sorted(t["title"] for t in got["items"]), ["Главная", "Дом"])
+        self.assertIn("купить хлеб", next(t for t in got["items"] if t["title"] == "Дом")["text"])
+        self.assertEqual(call("POST", "/api/tiddlers/get", {"titles": ["a"] * 101})[0], 400)
+
+    def test_old_tiddlers_get_links_on_first_listing(self):
+        call("PUT", "/api/tiddler", {"title": "Старый", "text": "[[Новый]]"})
+        item = self.table.items[("T#Старый", "CURRENT")]
+        del item["links"], item["size"]
+        listed = call("GET", "/api/tiddlers")[1]["items"][0]
+        self.assertEqual((listed["links"], listed["size"]), (["Новый"], len("[[Новый]]".encode())))
+        self.assertEqual(self.table.items[("T#Старый", "CURRENT")]["links"], ["Новый"])
+        call("GET", "/api/tiddlers")
+        self.assertEqual(self.table.updates, 1)
+
+    def test_search_and_tasks_run_on_the_server(self):
+        call("PUT", "/api/tiddler", {"title": "Ёлка", "text": "игрушки и гирлянда", "tags": ["дом"]})
+        call("PUT", "/api/tiddler", {"title": "Список", "text": "* [ ] ёлка\n* [x] шарики\n\n* [ ] свечи", "tags": ["дом"]})
+        call("PUT", "/api/tiddler", {"title": "Работа", "text": "- [ ] отчёт", "type": "text/markdown", "tags": ["работа"]})
+        self.assertEqual(call("GET", "/api/search", params={"q": "елка"})[1]["items"], ["Ёлка", "Список"])
+        self.assertEqual(call("GET", "/api/search", params={"q": "гирлянда игрушки"})[1]["items"], ["Ёлка"])
+        self.assertEqual(call("GET", "/api/search", params={"q": " "})[1]["items"], [])
+        groups = call("GET", "/api/tasks")[1]["items"]
+        self.assertEqual([g["title"] for g in groups], ["Работа", "Список"])
+        self.assertEqual(groups[1]["tasks"], [{"index": 0, "done": False, "text": "ёлка"}, {"index": 2, "done": False, "text": "свечи"}])
+        self.assertEqual([g["title"] for g in call("GET", "/api/tasks", params={"tag": "работа"})[1]["items"]], ["Работа"])
 
     def test_create_edit_rename_delete_keep_history(self):
         status, first = call("PUT", "/api/tiddler", {"title": "Главная", "text": "Привет", "tags": ["Дом", "Дом"]})
@@ -274,6 +334,7 @@ class AdminTest(unittest.TestCase):
         self.table = FakeTable()
         lambda_app._table = self.table
         lambda_app._ddb = FakeDynamo(self.table)
+        lambda_app._resource = FakeResource(self.table)
         self.cognito = lambda_app._cognito = FakeCognito()
         self.s3 = lambda_app._s3 = FakeS3()
         self.cognito.users["boss@example.com"] = {"Username": "boss@example.com", "UserStatus": "CONFIRMED", "Enabled": True, "UserCreateDate": datetime.now(timezone.utc)}

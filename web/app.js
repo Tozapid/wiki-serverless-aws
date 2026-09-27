@@ -335,7 +335,7 @@
   function links() {
     if (!linkIndex) {
       linkIndex = new Map();
-      state.tiddlers.forEach((tiddler) => linkIndex.set(tiddler.title, window.WikiText.links(tiddler.text, tiddler.type)));
+      state.tiddlers.forEach((tiddler) => linkIndex.set(tiddler.title, new Set(tiddler.links || [])));
     }
     return linkIndex;
   }
@@ -376,12 +376,18 @@
     linkIndex = null;
   }
 
+  // The list has every tiddler but no text. A text is loaded when its
+  // tiddler is shown, and kept while its etag stays the same.
   async function loadAll() {
     const next = new Map();
     let cursor = null;
     do {
       const page = await api("/tiddlers" + (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""));
-      page.items.forEach((tiddler) => next.set(tiddler.title, tiddler));
+      page.items.forEach((meta) => {
+        const known = state.tiddlers.get(meta.title);
+        const keep = known && known.etag === meta.etag && typeof known.text === "string";
+        next.set(meta.title, keep ? Object.assign({}, meta, { text: known.text }) : meta);
+      });
       cursor = page.next_cursor;
     } while (cursor);
     state.tiddlers = next;
@@ -389,9 +395,64 @@
     linkIndex = null;
   }
 
+  function hasText(title) {
+    const tiddler = state.tiddlers.get(title);
+    return !tiddler || typeof tiddler.text === "string";
+  }
+
+  const textRequests = new Map();
+
+  // Loads the texts of these tiddlers, 100 per request, and waits for any
+  // that are already on their way.
+  function loadTexts(titles) {
+    const waiting = [];
+    const wanted = [];
+    [...new Set(titles)].forEach((title) => {
+      if (hasText(title)) return;
+      if (textRequests.has(title)) waiting.push(textRequests.get(title));
+      else wanted.push(title);
+    });
+    for (let start = 0; start < wanted.length; start += 100) {
+      const chunk = wanted.slice(start, start + 100);
+      const request = api("/tiddlers/get", { method: "POST", body: { titles: chunk } }).then((data) => {
+        data.items.forEach((item) => {
+          const known = state.tiddlers.get(item.title);
+          if (!known || known.etag === item.etag || typeof known.text !== "string") setTiddler(item);
+        });
+        // A tiddler missing from the answer was deleted meanwhile; without
+        // this it would be asked for again on every redraw.
+        const got = new Set(data.items.map((item) => item.title));
+        chunk.forEach((title) => {
+          if (!got.has(title)) removeTiddler(title);
+        });
+      });
+      chunk.forEach((title) => textRequests.set(title, request));
+      waiting.push(request.finally(() => chunk.forEach((title) => textRequests.delete(title))));
+    }
+    return Promise.all(waiting);
+  }
+
+  // Rendering asks for texts it does not have; asks made in one pass go out
+  // as one request, then the open cards are drawn again.
+  let textWants = new Set();
+  let textWantTimer = null;
+
+  function requestText(title) {
+    if (hasText(title) || textRequests.has(title)) return;
+    textWants.add(title);
+    if (textWantTimer) return;
+    textWantTimer = setTimeout(() => {
+      const titles = [...textWants];
+      textWants = new Set();
+      textWantTimer = null;
+      loadTexts(titles).then(refreshViews, (error) => toast(t("Не удалось загрузить: {error}", { error: error.message })));
+    }, 0);
+  }
+
   async function sync() {
     try {
       await loadAll();
+      forgetTasks();
       renderSidebar();
       state.story.forEach((title) => {
         if (!state.drafts.has(title)) replaceCard(title);
@@ -413,6 +474,7 @@
       tagged,
       recent,
       allTasks,
+      need: requestText,
       current: title,
       stack: [title],
       interactive: !!interactive,
@@ -422,7 +484,10 @@
 
   function renderText(tiddler, interactive) {
     const node = el("div", { class: "body" });
-    if (!String(tiddler.text || "").trim()) {
+    if (typeof tiddler.text !== "string") {
+      requestText(tiddler.title);
+      node.append(el("p", { class: "muted" }, t("Загружаю…")));
+    } else if (!tiddler.text.trim()) {
       node.append(el("p", { class: "muted" }, t("Текста нет")));
     } else {
       const live = interactive && state.tiddlers.has(tiddler.title);
@@ -433,19 +498,28 @@
 
   // Tasks --------------------------------------------------------------
 
+  // <<todo>> needs every text, so the server gathers the open tasks. The
+  // answer is kept until something is saved or the list is refreshed.
+  const taskGroups = new Map();
+
   function allTasks(tag) {
-    return [...state.tiddlers.values()]
-      .filter((tiddler) => !isSystem(tiddler.title) && (!tag || tiddler.tags.includes(tag)))
-      .map((tiddler) => ({
-        title: tiddler.title,
-        type: tiddler.type,
-        tasks: window.WikiText.tasks(tiddler.text, tiddler.type).filter((task) => !task.done),
-      }))
-      .filter((group) => group.tasks.length)
-      .sort((a, b) => compareTitles(a.title, b.title));
+    const key = tag || "";
+    const entry = taskGroups.get(key);
+    if (entry) return entry.items;
+    taskGroups.set(key, { items: null });
+    api("/tasks" + (tag ? "?tag=" + encodeURIComponent(tag) : "")).then((data) => {
+      taskGroups.set(key, { items: data.items });
+      refreshViews();
+    }, () => taskGroups.delete(key));
+    return null;
+  }
+
+  function forgetTasks() {
+    taskGroups.clear();
   }
 
   function taskCount(tiddler) {
+    if (typeof tiddler.text !== "string") return null;
     const list = window.WikiText.tasks(tiddler.text, tiddler.type);
     if (!list.length) return null;
     const done = list.filter((task) => task.done).length;
@@ -463,7 +537,8 @@
 
   // A click changes the text at once; saves for one tiddler run one after
   // another, each sending the latest text with the latest etag.
-  function toggleTask(title, index, done) {
+  async function toggleTask(title, index, done) {
+    if (!hasText(title)) await loadTexts([title]);
     const tiddler = state.tiddlers.get(title);
     if (!tiddler) return;
     const text = window.WikiText.setTask(tiddler.text, tiddler.type, index, done);
@@ -473,6 +548,9 @@
       return;
     }
     setTiddler(Object.assign({}, tiddler, { text }));
+    taskGroups.forEach((entry) => (entry.items || []).forEach((group) => {
+      if (group.title === title) group.tasks = group.tasks.filter((task) => task.index !== index || !done);
+    }));
     refreshViews();
     const chain = (taskSaves.get(title) || Promise.resolve()).then(() => saveTaskText(title));
     taskSaves.set(title, chain);
@@ -492,6 +570,7 @@
       taskSaved.set(title, saved.text);
       const now = state.tiddlers.get(title);
       setTiddler(Object.assign({}, saved, { text: now ? now.text : saved.text }));
+      forgetTasks();
       refreshViews();
       renderSidebarList();
     } catch (error) {
@@ -535,6 +614,7 @@
       oninput: (event) => {
         state.query = event.target.value;
         renderSidebarList();
+        scheduleSearch();
       },
       onkeydown: (event) => {
         if (event.key === "Enter") {
@@ -587,6 +667,32 @@
     ]);
   }
 
+  // Titles, tags and texts already here are searched at once; the server
+  // searches every text a moment after typing stops.
+  const SEARCH_DELAY = 300;
+  const serverSearch = { query: "", items: null };
+  let searchTimer = null;
+
+  function scheduleSearch() {
+    clearTimeout(searchTimer);
+    const query = state.query.trim();
+    if (!query) return;
+    searchTimer = setTimeout(async () => {
+      serverSearch.query = query;
+      serverSearch.items = null;
+      renderSidebarList();
+      let items = [];
+      try {
+        items = (await api("/search?q=" + encodeURIComponent(query))).items;
+      } catch (error) {
+        toast(error.message);
+      }
+      if (serverSearch.query !== query) return;
+      serverSearch.items = items;
+      renderSidebarList();
+    }, SEARCH_DELAY);
+  }
+
   function searchResults(query) {
     const words = query.toLocaleLowerCase("ru").replace(/ё/g, "е").split(/\s+/).filter(Boolean);
     if (!words.length) return [];
@@ -600,7 +706,13 @@
       if (!words.every((word) => body.includes(word))) return;
       (words.every((word) => name.includes(word)) ? inTitle : inText).push(title);
     });
-    return inTitle.concat(inText);
+    const found = inTitle.concat(inText);
+    if (serverSearch.query === query.trim() && serverSearch.items) {
+      serverSearch.items.forEach((title) => {
+        if (state.tiddlers.has(title) && !found.includes(title)) found.push(title);
+      });
+    }
+    return found;
   }
 
   function renderSidebarList() {
@@ -613,8 +725,12 @@
     });
     if (state.query.trim()) {
       const results = searchResults(state.query);
+      const searching = serverSearch.query !== state.query.trim() || !serverSearch.items;
       list.replaceChildren(
-        el("p", { class: "count" }, results.length ? t("Найдено: {count}", { count: results.length }) : t("Ничего не нашлось")),
+        el("p", { class: "count" }, [
+          results.length ? t("Найдено: {count}", { count: results.length }) : searching ? "" : t("Ничего не нашлось"),
+          searching ? el("span", { class: "muted" }, (results.length ? " " : "") + t("Ищу в тексте статей…")) : null,
+        ]),
         el("ul", { class: "titles" }, results.slice(0, 200).map((title) => titleButton(title))),
       );
       return;
@@ -833,7 +949,15 @@
     placeInStory(title, null, true);
   }
 
-  function startEdit(title, override) {
+  async function startEdit(title, override) {
+    if (!override && !hasText(title)) {
+      try {
+        await loadTexts([title]);
+      } catch (error) {
+        toast(t("Не удалось загрузить: {error}", { error: error.message }));
+        return;
+      }
+    }
     const tiddler = getTiddler(title);
     const stored = state.tiddlers.get(title);
     const base = override || tiddler || {};
@@ -1264,6 +1388,7 @@
       const saved = await api("/tiddler", { method: "PUT", body });
       if (body.from_title) removeTiddler(key);
       setTiddler(saved);
+      forgetTasks();
       state.drafts.delete(key);
       dropDraft(key, draft);
       const index = state.story.indexOf(key);
@@ -1288,6 +1413,7 @@
     if (!sources.length) return;
     const ok = window.confirm(t("На «{from}» ссылаются тиддлеры ({count}). Заменить ссылки на «{to}»?", { from, to, count: sources.length }));
     if (!ok) return;
+    await loadTexts(sources);
     const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const pattern = new RegExp("(\\[\\[(?:[^\\]|\\n]*\\|)?)" + escaped + "(\\]\\])|(\\{\\{)" + escaped + "((?:\\|\\||!!|\\}\\}))", "g");
     let failed = 0;
@@ -1953,6 +2079,7 @@
     stopAutosave();
     state.drafts.clear();
     (saved.drafts || []).forEach(restoreDraft);
+    if (!saved.story && !savedStory()) await loadTexts(["$:/DefaultTiddlers"]).catch(() => {});
     const linked = decodeHash();
     const story = saved.story || savedStory() || defaultTitles();
     state.story = linked ? [linked, ...story.filter((title) => title !== linked)] : story;
@@ -1960,6 +2087,11 @@
       if (!state.story.includes(key)) state.story.push(key);
     });
     saveStory();
+    try {
+      await loadTexts(["$:/SiteTitle", "$:/SiteSubtitle", ...state.story]);
+    } catch (error) {
+      toast(t("Не удалось загрузить: {error}", { error: error.message }));
+    }
     renderApp();
     if (linked) setHash(linked);
     clearInterval(syncTimer);

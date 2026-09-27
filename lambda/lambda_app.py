@@ -9,6 +9,12 @@ SK=DRAFT#<title> an unsaved edit, so both survive a reload on any device.
 
 Members of the Cognito admin group manage users and remove attached files
 that no tiddler or draft refers to any more.
+
+The page loads the text of a tiddler only when it is opened. The list it
+gets at sign-in comes from the "tiddlers" index, which holds everything but
+the text; the links of each tiddler are worked out on save and kept in
+"links", so backlinks and missing pages need no text. Full-text search and
+the task summary run here instead.
 """
 
 import base64
@@ -37,6 +43,10 @@ COOKIE_SECONDS = 3600
 STORY_MAX = 200
 DRAFTS_MAX = 15
 ETAG_RE = re.compile(r"^[0-9a-f]{0,64}$")
+SEARCH_MAX = 200
+EXTERNAL_RE = re.compile(r"^(https?://|mailto:|/files/)", re.I)
+TASK_WIKI_RE = re.compile(r"^((?:>\s?)*[*#]+\s+)\[([ xX])\](?=\s)")
+TASK_MARKDOWN_RE = re.compile(r"^(\s*(?:>\s?)*\s*(?:[-+*]|\d+[.)])\s+)\[([ xX])\](?=\s)")
 EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}$")
 FILE_GRACE_SECONDS = 3600
 PASSWORD_SYMBOLS = "!@#%&*-_=+"
@@ -50,6 +60,7 @@ _table = None
 _serializer = None
 _signing_key = None
 _cognito = None
+_resource = None
 
 
 class ApiError(Exception):
@@ -95,6 +106,12 @@ def route(method, parts, event):
         return admin_route(method, parts[1:], params, event)
     if parts == ["tiddlers"] and method == "GET":
         return list_tiddlers(params)
+    if parts == ["tiddlers", "get"] and method == "POST":
+        return get_tiddlers(event)
+    if parts == ["search"] and method == "GET":
+        return search(params.get("q"))
+    if parts == ["tasks"] and method == "GET":
+        return open_tasks(params.get("tag"))
     if parts == ["tiddler"] and method == "GET":
         return get_tiddler(params.get("title"))
     if parts == ["tiddler"] and method == "PUT":
@@ -128,10 +145,105 @@ def list_tiddlers(params):
         kwargs["ExclusiveStartKey"] = cursor
     # One query page is at most 1 MB, well within the Lambda response limit.
     resp = table().query(**kwargs)
+    items = with_meta(resp.get("Items", []))
     return response(200, {
-        "items": [public_tiddler(item) for item in resp.get("Items", [])],
+        "items": [public_meta(item) for item in items],
         "next_cursor": encode_cursor(resp.get("LastEvaluatedKey")),
     })
+
+
+def with_meta(items):
+    """Fills in links and size for tiddlers saved before they were kept."""
+    stale = [item for item in items if "links" not in item]
+    for start in range(0, len(stale), 100):
+        chunk = stale[start:start + 100]
+        full = {item["title"]: item for item in batch_get([item["title"] for item in chunk])}
+        for item in chunk:
+            source = full.get(item["title"])
+            if not source:
+                continue
+            meta = text_meta(source.get("text", ""), source.get("type"))
+            item.update(meta)
+            try:
+                table().update_item(
+                    Key={"pk": tiddler_pk(item["title"]), "sk": "CURRENT"},
+                    # SIZE is a reserved word in DynamoDB expressions.
+                    UpdateExpression="SET #l = :l, #s = :s",
+                    ConditionExpression="etag = :e",
+                    ExpressionAttributeNames={"#l": "links", "#s": "size"},
+                    ExpressionAttributeValues={":l": meta["links"], ":s": meta["size"], ":e": source.get("etag", "")},
+                )
+            except Exception as exc:
+                if not conditional_failed(exc):
+                    raise
+    return items
+
+
+def batch_get(titles):
+    found = []
+    keys = [{"pk": tiddler_pk(title), "sk": "CURRENT"} for title in dict.fromkeys(titles)]
+    for start in range(0, len(keys), 100):
+        request = {table_name(): {"Keys": keys[start:start + 100]}}
+        while request:
+            answer = dynamo_resource().batch_get_item(RequestItems=request)
+            found.extend(answer.get("Responses", {}).get(table_name(), []))
+            request = answer.get("UnprocessedKeys") or None
+    return found
+
+
+def get_tiddlers(event):
+    titles = body_json(event).get("titles")
+    if not isinstance(titles, list) or len(titles) > 100:
+        raise ApiError(400, "Нужен список до {count} названий", count=100)
+    titles = [validate_title(title) for title in titles]
+    return response(200, {"items": [public_tiddler(item) for item in batch_get(titles)]})
+
+
+def scan_current(fields):
+    """Every current tiddler with the given attributes, straight from the table."""
+    from boto3.dynamodb.conditions import Attr
+
+    names = {f"#f{n}": field for n, field in enumerate(fields)}
+    kwargs = {
+        "FilterExpression": Attr("sk").eq("CURRENT"),
+        "ProjectionExpression": ", ".join(names),
+        "ExpressionAttributeNames": names,
+    }
+    while True:
+        resp = table().scan(**kwargs)
+        yield from resp.get("Items", [])
+        if not resp.get("LastEvaluatedKey"):
+            return
+        kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+
+
+def fold(text):
+    return str(text or "").lower().replace("ё", "е")
+
+
+def search(query):
+    words = fold(query).split()[:8]
+    if not words:
+        return response(200, {"items": []})
+    in_title, in_text = [], []
+    for item in scan_current(["title", "tags", "text"]):
+        title = fold(item.get("title"))
+        haystack = title + " " + fold(" ".join(item.get("tags") or [])) + " " + fold(item.get("text"))
+        if all(word in haystack for word in words):
+            (in_title if all(word in title for word in words) else in_text).append(item["title"])
+    return response(200, {"items": (sorted(in_title) + sorted(in_text))[:SEARCH_MAX]})
+
+
+def open_tasks(tag):
+    groups = []
+    for item in scan_current(["title", "tags", "type", "text"]):
+        if tag and tag not in (item.get("tags") or []):
+            continue
+        tasks = [task for task in scan_tasks(item.get("text", ""), item.get("type")) if not task["done"]]
+        if tasks:
+            groups.append({"title": item["title"], "type": item.get("type") or DEFAULT_TYPE, "tasks": tasks})
+    groups.sort(key=lambda group: group["title"].lower())
+    return response(200, {"items": groups})
 
 
 def get_tiddler(title):
@@ -478,16 +590,9 @@ def delete_user(email, event):
 
 
 def referenced_text():
-    from boto3.dynamodb.conditions import Attr, Key
+    from boto3.dynamodb.conditions import Attr
 
-    texts = []
-    kwargs = {"IndexName": "tiddlers", "KeyConditionExpression": Key("gsi1pk").eq("TIDDLER"), "ProjectionExpression": "#t", "ExpressionAttributeNames": {"#t": "text"}}
-    while True:
-        resp = table().query(**kwargs)
-        texts.extend(item.get("text", "") for item in resp.get("Items", []))
-        if not resp.get("LastEvaluatedKey"):
-            break
-        kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+    texts = [item.get("text", "") for item in scan_current(["text"])]
     kwargs = {"FilterExpression": Attr("sk").begins_with("DRAFT#"), "ProjectionExpression": "#t", "ExpressionAttributeNames": {"#t": "text"}}
     while True:
         resp = table().scan(**kwargs)
@@ -583,6 +688,7 @@ def get_current(title):
 
 def current_item(title, text, tags, kind, created, creator, modified, modifier):
     return {
+        **text_meta(text, kind),
         "pk": tiddler_pk(title),
         "sk": "CURRENT",
         "gsi1pk": "TIDDLER",
@@ -615,9 +721,24 @@ def revision_item(item, action, now, who, extra=None):
     return rev
 
 
-def public_tiddler(item):
+def public_meta(item):
     return {
         "title": item.get("title", ""),
+        "tags": list(item.get("tags") or []),
+        "type": item.get("type") or DEFAULT_TYPE,
+        "created": item.get("created", ""),
+        "creator": item.get("creator", ""),
+        "modified": item.get("modified", ""),
+        "modifier": item.get("modifier", ""),
+        "etag": item.get("etag", ""),
+        "links": list(item.get("links") or []),
+        "size": as_int(item.get("size")),
+    }
+
+
+def public_tiddler(item):
+    return {
+        **public_meta(item),
         "text": item.get("text", ""),
         "tags": list(item.get("tags") or []),
         "type": item.get("type") or DEFAULT_TYPE,
@@ -912,6 +1033,15 @@ def cognito():
     return _cognito
 
 
+def dynamo_resource():
+    global _resource
+    if _resource is None:
+        import boto3
+
+        _resource = boto3.resource("dynamodb")
+    return _resource
+
+
 def ddb():
     global _ddb
     if _ddb is None:
@@ -1050,3 +1180,54 @@ def translate(lang, message, values=None):
     if lang != "ru" and message in MESSAGES:
         message = MESSAGES[message][LANGUAGES.index(lang) - 1]
     return re.sub(r"\{(\w+)\}", lambda m: str((values or {}).get(m.group(1), m.group(0))), message)
+
+
+# Text rules shared with the page ---------------------------------------------
+# These follow links() and scanTasks() in web/wikitext.js, so the server
+# counts the same links and numbers the same tasks as the browser.
+
+def text_meta(text, kind):
+    return {"links": sorted(extract_links(text, kind)), "size": len((text or "").encode("utf-8"))}
+
+
+def extract_links(text, kind):
+    found = set()
+    if kind == "text/plain":
+        return found
+    stripped = re.sub(r"```[\s\S]*?```", "", text or "")
+    stripped = re.sub(r"``[\s\S]*?``", "", stripped)
+    stripped = re.sub(r"`[^`\n]*`", "", stripped)
+    for inner in re.findall(r"\[\[([^\]\n]+?)\]\]", stripped):
+        target = inner.split("|", 1)[1] if "|" in inner else inner
+        target = target.strip()
+        if target and not EXTERNAL_RE.match(target):
+            found.add(target)
+    for inner in re.findall(r"\{\{([^{}\n]+)\}\}", stripped):
+        target = inner.split("||")[0].split("!!")[0].strip()
+        if target:
+            found.add(target)
+    if kind == "text/markdown":
+        from urllib.parse import unquote
+
+        for target in re.findall(r"(?:^|[^!])\[[^\]\n]+\]\(([^)\s]+)\)", stripped):
+            target = unquote(target)
+            if not EXTERNAL_RE.match(target) and not re.match(r"^[a-z]+:", target, re.I):
+                found.add(target)
+    return found
+
+
+def scan_tasks(text, kind):
+    if kind == "text/plain":
+        return []
+    pattern = TASK_MARKDOWN_RE if kind == "text/markdown" else TASK_WIKI_RE
+    tasks, fenced = [], False
+    for line in (text or "").replace("\r\n", "\n").split("\n"):
+        if re.match(r"^\s*```", line):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        m = pattern.match(line)
+        if m:
+            tasks.append({"index": len(tasks), "done": m.group(2) != " ", "text": line[m.end():].strip()})
+    return tasks

@@ -29,6 +29,8 @@ data "aws_iam_policy_document" "lambda" {
     sid = "TiddlersTable"
     actions = [
       "dynamodb:GetItem",
+      "dynamodb:BatchGetItem",
+      "dynamodb:UpdateItem",
       "dynamodb:PutItem",
       "dynamodb:DeleteItem",
       "dynamodb:Query",
