@@ -53,6 +53,8 @@ PASSWORD_SYMBOLS = "!@#%&*-_=+"
 BAD_TITLE_RE = re.compile(r"[\x00-\x1f\x7f\[\]{}|]")
 CONTENT_TYPE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+-]*/[A-Za-z0-9][A-Za-z0-9.+-]*$")
 SHA1_DIGEST_INFO = bytes.fromhex("3021300906052b0e03021a05000414")
+# Example files of the demo; the hourly reset brings back the tiddlers that use them.
+SEED_PREFIX = "files/seed/"
 
 _s3 = None
 _ddb = None
@@ -607,6 +609,7 @@ def orphan_files():
     """Files that no current tiddler or draft mentions, older than an hour.
 
     The hour leaves room for an upload that has not reached a draft yet.
+    Demo example files are kept even when their tiddler was deleted.
     """
     used = referenced_text()
     cutoff = time.time() - FILE_GRACE_SECONDS
@@ -614,7 +617,7 @@ def orphan_files():
     for page in s3().get_paginator("list_objects_v2").paginate(Bucket=env("FILES_BUCKET"), Prefix="files/"):
         for obj in page.get("Contents", []):
             key = obj["Key"]
-            if "/" + key in used or obj["LastModified"].timestamp() > cutoff:
+            if key.startswith(SEED_PREFIX) or "/" + key in used or obj["LastModified"].timestamp() > cutoff:
                 continue
             orphans.append({"key": key, "path": "/" + key, "size": obj.get("Size", 0), "modified": iso(obj["LastModified"])})
     orphans.sort(key=lambda item: item["modified"])

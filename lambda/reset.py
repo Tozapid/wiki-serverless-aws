@@ -4,8 +4,13 @@ Brings the wiki back to a fresh deployment: every tiddler, revision, open
 story and draft is removed from DynamoDB, every attached file (all versions)
 from S3, and every Cognito user except the demo administrator, whose password,
 state and admin rights are put back.
+
+The example tiddlers in tiddlers.json (seed/ in the repository) are then
+written again. Their files live under files/seed/, are uploaded by Terraform
+and are never removed here.
 """
 
+import json
 import logging
 import os
 
@@ -13,6 +18,9 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 _clients = {}
+
+SEED_PREFIX = "files/seed/"
+SEED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tiddlers.json")
 
 
 def client(name):
@@ -26,6 +34,7 @@ def client(name):
 def handler(event, context):
     result = {
         "items": wipe_table(os.environ["TABLE_NAME"]),
+        "seeded": seed_table(os.environ["TABLE_NAME"], os.environ["ADMIN_EMAIL"]),
         "files": wipe_bucket(os.environ["FILES_BUCKET"]),
         "users": reset_users(
             os.environ["USER_POOL_ID"],
@@ -44,25 +53,54 @@ def wipe_table(table):
     while True:
         page = client("dynamodb").scan(**kwargs)
         keys = [{"pk": item["pk"], "sk": item["sk"]} for item in page.get("Items", [])]
-        for start in range(0, len(keys), 25):
-            batch = [{"DeleteRequest": {"Key": key}} for key in keys[start:start + 25]]
-            while batch:
-                answer = client("dynamodb").batch_write_item(RequestItems={table: batch})
-                batch = answer.get("UnprocessedItems", {}).get(table, [])
+        write(table, [{"DeleteRequest": {"Key": key}} for key in keys])
         removed += len(keys)
         if not page.get("LastEvaluatedKey"):
             return removed
         kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
 
 
+def write(table, requests):
+    for start in range(0, len(requests), 25):
+        batch = requests[start:start + 25]
+        while batch:
+            answer = client("dynamodb").batch_write_item(RequestItems={table: batch})
+            batch = answer.get("UnprocessedItems", {}).get(table, [])
+
+
+def seed_table(table, author):
+    """Writes the example tiddlers as if the administrator had just created them."""
+    if not os.path.exists(SEED_FILE):
+        return 0
+    import lambda_app
+
+    with open(SEED_FILE, encoding="utf-8") as source:
+        tiddlers = json.load(source)
+    now = lambda_app.now_iso()
+    requests = []
+    for tiddler in tiddlers:
+        item = lambda_app.current_item(
+            tiddler["title"], tiddler["text"], tiddler.get("tags", []),
+            tiddler.get("type", lambda_app.DEFAULT_TYPE), now, author, now, author,
+        )
+        for row in (item, lambda_app.revision_item(item, "create", now, author)):
+            requests.append({"PutRequest": {"Item": lambda_app.marshal_item(row)}})
+    write(table, requests)
+    return len(tiddlers)
+
+
 def wipe_bucket(bucket):
-    """Deletes every version and delete marker, so nothing stays recoverable."""
+    """Deletes every version and delete marker, so nothing stays recoverable.
+
+    The example files under SEED_PREFIX stay: Terraform uploads them once.
+    """
     removed = 0
     paginator = client("s3").get_paginator("list_object_versions")
     for page in paginator.paginate(Bucket=bucket):
         objects = [
             {"Key": item["Key"], "VersionId": item["VersionId"]}
             for item in page.get("Versions", []) + page.get("DeleteMarkers", [])
+            if not item["Key"].startswith(SEED_PREFIX)
         ]
         for start in range(0, len(objects), 1000):
             chunk = objects[start:start + 1000]

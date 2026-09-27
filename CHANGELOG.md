@@ -18,6 +18,7 @@
 
 ### Added
 
+- Example tiddlers in the demo, written again by every hourly reset: a video, a photo, a table, task lists with a `<<todo>>` summary and lorem ipsum. They open at sign-in next to the help. Their files live under `files/seed/` in the files bucket; the reset and the cleanup of unused files leave them alone.
 - Frontend tests in `tests/web/`: markup renderer, translations, link and task rules against the Lambda, and the interface in headless Chrome. GitHub Actions runs them, the Lambda tests and the Terraform checks as three separate jobs; plan and apply wait for all three.
 - Stress test with 3,000 tiddlers in the README.
 - Link to the demo in the README.

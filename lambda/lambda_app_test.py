@@ -392,6 +392,7 @@ class AdminTest(unittest.TestCase):
             "files/bbbbbbbbbbbbbbbb/in-draft.png": (20, old),
             "files/cccccccccccccccc/unused.mp4": (300, old),
             "files/dddddddddddddddd/just-uploaded.jpg": (40, datetime.now(timezone.utc)),
+            "files/seed/example.jpg": (50, old),
         }
         call("PUT", "/api/tiddler", {"title": "Фото", "text": "[img[/files/aaaaaaaaaaaaaaaa/used.jpg]]"})
         call("PUT", "/api/state/draft", {"key": "Черновик", "text": "![x](/files/bbbbbbbbbbbbbbbb/in-draft.png)"}, email="other@example.com")
@@ -401,7 +402,7 @@ class AdminTest(unittest.TestCase):
         status, result = self.admin("POST", "/api/admin/files/cleanup", {"keys": ["files/cccccccccccccccc/unused.mp4", "files/aaaaaaaaaaaaaaaa/used.jpg"]})
         self.assertEqual(result["deleted"], ["files/cccccccccccccccc/unused.mp4"])
         self.assertEqual(result["skipped"], ["files/aaaaaaaaaaaaaaaa/used.jpg"])
-        self.assertEqual(sorted(self.s3.objects), ["files/aaaaaaaaaaaaaaaa/used.jpg", "files/bbbbbbbbbbbbbbbb/in-draft.png", "files/dddddddddddddddd/just-uploaded.jpg"])
+        self.assertEqual(sorted(self.s3.objects), ["files/aaaaaaaaaaaaaaaa/used.jpg", "files/bbbbbbbbbbbbbbbb/in-draft.png", "files/dddddddddddddddd/just-uploaded.jpg", "files/seed/example.jpg"])
 
 
 class HelpersTest(unittest.TestCase):

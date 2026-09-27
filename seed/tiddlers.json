@@ -1,0 +1,66 @@
+[
+  {
+    "title": "Examples",
+    "tags": [],
+    "type": "text/vnd.tiddlywiki",
+    "text": "These tiddlers come back with every hourly reset of the demo. Edit or delete them freely.\n\n<<tagged \"Examples\">>\n\nThe markup is explained in [[$:/Markup]]."
+  },
+  {
+    "title": "Cat on a fence",
+    "tags": [
+      "Examples",
+      "Media"
+    ],
+    "type": "text/vnd.tiddlywiki",
+    "text": "A cat walks along a wooden fence above a mountain valley.\n\n[img[/files/seed/9498461.mp4]]\n\nA file from `/files` with a video extension (mp4, webm, mov, ogv) gets a player. In the editor, the //File// button uploads a video and inserts this line for you."
+  },
+  {
+    "title": "Orange tree",
+    "tags": [
+      "Examples",
+      "Media"
+    ],
+    "type": "text/vnd.tiddlywiki",
+    "text": "[img[Oranges on a tree against a blue sky|/files/seed/philippe-gauthier-eaOjEz8746k-unsplash.jpg]]\n\nClick the photo to see it in full.\n\nPhoto by Philippe Gauthier on [[Unsplash|https://unsplash.com/photos/eaOjEz8746k]]."
+  },
+  {
+    "title": "How this wiki is built",
+    "tags": [
+      "Examples"
+    ],
+    "type": "text/vnd.tiddlywiki",
+    "text": "Every part is a managed AWS service that costs nothing while nobody uses it.\n\n|!Part |!Service |!What it does |\n|Page |S3 + CloudFront |Serves `index.html`, scripts and styles |\n|Sign-in |Cognito |Invited users only, no self sign-up |\n|API |API Gateway + Lambda |Reads and saves tiddlers, checks the sign-in token |\n|Tiddlers |DynamoDB |Current text, full history, drafts and open tiddlers |\n|Files |S3 + CloudFront |Private bucket, read with a one-hour signed cookie |\n|Demo reset |EventBridge + Lambda |Puts everything back every hour |\n\nA table is lines of cells between `|`; a cell that starts with `!` is a heading."
+  },
+  {
+    "title": "Weekend plans",
+    "tags": [
+      "Examples",
+      "Tasks"
+    ],
+    "type": "text/vnd.tiddlywiki",
+    "text": "! Shopping\n* [x] bread\n* [ ] oranges, see [[Orange tree]]\n* [ ] coffee beans\n\n! Around the house\n* [ ] fix the garden fence before the cat finds it\n* [x] water the plants\n* [ ] call about the boiler\n\nTick a box and the tiddler is saved at once. The ☐ button in the editor turns lines into tasks."
+  },
+  {
+    "title": "Open tasks",
+    "tags": [
+      "Examples",
+      "Tasks"
+    ],
+    "type": "text/vnd.tiddlywiki",
+    "text": "Every unticked task in the wiki, by tiddler. Ticking one here saves the tiddler it comes from.\n\n<<todo>>"
+  },
+  {
+    "title": "Lorem ipsum",
+    "tags": [
+      "Examples"
+    ],
+    "type": "text/vnd.tiddlywiki",
+    "text": "! Lorem ipsum\nLorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n\n!! Sed ut perspiciatis\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. ''Nemo enim ipsam voluptatem'' quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.\n\n* Neque porro quisquam est\n* qui dolorem ipsum quia dolor sit amet\n* consectetur, adipisci velit\n\n> Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur?\n\nQuis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?"
+  },
+  {
+    "title": "$:/DefaultTiddlers",
+    "tags": [],
+    "type": "text/vnd.tiddlywiki",
+    "text": "[[Examples]]\n[[$:/Markup]]"
+  }
+]

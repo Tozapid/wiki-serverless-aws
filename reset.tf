@@ -9,10 +9,25 @@ resource "aws_ssm_parameter" "admin_password" {
   value       = var.admin_password
 }
 
+# The reset writes the example tiddlers with the API's own item builders.
 data "archive_file" "reset" {
   type        = "zip"
-  source_file = "${path.module}/lambda/reset.py"
   output_path = "${path.module}/.build/reset.zip"
+
+  source {
+    content  = file("${path.module}/lambda/reset.py")
+    filename = "reset.py"
+  }
+
+  source {
+    content  = file("${path.module}/lambda/lambda_app.py")
+    filename = "lambda_app.py"
+  }
+
+  source {
+    content  = file("${path.module}/seed/tiddlers.json")
+    filename = "tiddlers.json"
+  }
 }
 
 resource "aws_cloudwatch_log_group" "reset" {

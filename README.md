@@ -10,7 +10,7 @@ Notes are *tiddlers*: a title, text and tags. Open tiddlers form a story river; 
 
 Sign in with `admin@example.com` / `admin123` (the fields are filled in for you).
 
-The demo is public and wiped every hour: all tiddlers, drafts, uploaded files and users go away, and the admin password is put back. Invitations do not send email in the demo; the temporary password is shown to the administrator instead.
+The demo is public and wiped every hour: all tiddlers, drafts, uploaded files and users go away, and the admin password is put back. A few example tiddlers — a video, a photo, a table, task lists and lorem ipsum — are written again after each wipe, so they are always there. Invitations do not send email in the demo; the temporary password is shown to the administrator instead.
 
 ## Features
 
@@ -125,7 +125,7 @@ The defaults set up the public demo. For a private wiki, change them in a `terra
 | --- | --- | --- |
 | `demo` | `true` — the sign-in screen shows and fills in the admin sign-in | `false` — nothing is shown |
 | `admin_email`, `admin_password` | `admin@example.com`, `admin123` | your own |
-| `reset_schedule` | `rate(1 hour)` | `""` — no reset |
+| `reset_schedule` | `rate(1 hour)` | `""` — no reset and no example tiddlers |
 | `invite_emails` | `false` | `true` — Cognito emails the invitation |
 | `password_min_length` | `8` | `12` or more |
 | `file_max_bytes` | 10 MB | up to what you are ready to store |
@@ -138,6 +138,7 @@ The defaults set up the public demo. For a private wiki, change them in a `terra
 | `web/` | The page: `app.js` (interface), `wikitext.js` (markup), `i18n.js` (translations), `styles.css`, `index.html` |
 | `lambda/lambda_app.py` | API, with tests in `lambda_app_test.py` |
 | `lambda/reset.py` | Hourly demo reset, with tests in `reset_test.py` |
+| `seed/` | Example tiddlers of the demo (`tiddlers.json`) and their files, uploaded to `files/seed/` |
 | `tests/web/` | Frontend tests |
 | `cloudfront/api_host.js` | CloudFront function that passes the site address to the API for the file cookie |
 | `.github/workflows/` | CI and deployment |
@@ -155,7 +156,7 @@ cd tests/web && npm ci && npm test
 - open tiddlers and drafts per user, draft limits, error messages in the page language, titles that would break links;
 - administration: only the `admins` group gets in, invite, disable and delete users, no locking yourself out, cleanup of only old unused files;
 - CloudFront cookie signing, checked byte for byte against `openssl`;
-- the demo reset: wipes the table, every file version and other users, and brings the admin back.
+- the demo reset: wipes the table, every file version and other users, brings the admin back and writes the example tiddlers again, keeping their files; every file and link in the examples exists.
 
 **Frontend** (`tests/web/`, `node --test`):
 
