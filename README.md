@@ -146,38 +146,22 @@ The defaults set up the public demo. For a private wiki, change them in a `terra
 
 Run on the demo on 27 September 2026: 3,000 tiddlers created through the API, then the interface measured in headless Chrome on a MacBook over a home connection.
 
-**Data.** 3,000 tiddlers, 11.7 MB of text: most 0.5–3 KB, 9 % 5–20 KB, 1 % 50–100 KB; 40 tags, 10 % Markdown, headings, lists, tables, code, 11,490 open tasks, links between tiddlers and to 50 missing pages, 156 tiddlers with `{{transclusion}}`.
+**Data.** 3,000 tiddlers, 11.7 MB of text: most 0.5–3 KB, 9 % 5–20 KB, 1 % 50–100 KB; 40 tags, 10 % Markdown, headings, lists, tables, code, 11,466 open tasks, links between tiddlers and to 50 missing pages, 156 tiddlers with `{{transclusion}}`.
 
 | What | Result |
 | --- | --- |
-| Creating 3,000 tiddlers, 8 parallel writers | 150 s, 0 failures. 20 saves/s: the API Gateway stage limit (`throttling_rate_limit = 20`); 590 requests got 429 and succeeded on retry |
-| Save latency | p50 224 ms, p95 330 ms, max 3.8 s (a retry wait) |
-| Full list for the browser | 13 pages of about 1 MB, 12.8 MB of JSON (4.6 MB gzip), 7.2–7.7 s, fetched one page after another |
-| Sign-in until the story shows | 7.3 s, almost all of it waiting for those pages; script time under 0.5 s |
-| Search over all text | 30–250 ms per keystroke |
-| Sidebar tabs: All (3,000 rows), Tags, Missing | 13–80 ms |
-| Open the biggest tiddler (100 KB) / edit it | 190 ms / 100 ms |
-| `<<todo>>` over the whole wiki (11,490 tasks) | 0.1–0.8 s |
+| Creating 3,000 tiddlers, 8 parallel writers | 150 s, 0 failures. 20 saves/s: the API Gateway stage limit (`throttling_rate_limit = 20`); 781 requests got 429 and succeeded on retry |
+| Save latency | p50 175 ms, p95 229 ms, max 3.6 s (a retry wait) |
+| Data at sign-in | 1.46 MB of tiddler list in 2 pages, plus 13 KB of text for the open tiddlers |
+| Sign-in until the page shows | 4.3–4.6 s (three runs) |
+| Opening a tiddler not loaded yet | 160–200 ms, one request for its text |
+| Search | titles and tags at once; all text 2.6 s on the server |
+| `<<todo>>` over the whole wiki (11,466 tasks) | 3.9 s on the server |
+| All tab (3,000 rows), Missing tab (50) | from the stored links, no text needed |
 | Worst transclusion tree | 6 renders: the depth limit keeps `{{…}}` from exploding |
-| JavaScript heap after the test | 25 MB |
+| JavaScript heap after the test | 8 MB |
 
-**Conclusion.** Once loaded, the wiki stays responsive with thousands of tiddlers. The weak spot was start-up: the whole text was loaded before anything showed, so sign-in time grew with the size of the wiki (about 0.6 s per MB). Since then tiddler text is loaded on demand, see [Loading on demand](#loading-on-demand).
-
-**After loading on demand**, same 3,000 tiddlers, same machine:
-
-| What | Before | After |
-| --- | --- | --- |
-| Data at sign-in | 12.8 MB in 13 pages | 1.46 MB in 2 pages, plus 13 KB of text for the open tiddlers |
-| Sign-in until the page shows | 7.3 s | 4.3–4.6 s (three runs) |
-| Opening a tiddler not seen yet | 190 ms, text already there | 160–200 ms, one request for its text |
-| Search over all text | 30–250 ms in the browser | titles and tags at once; text 2.6 s on the server |
-| `<<todo>>` over 11,466 tasks | 0.1–0.8 s | 3.9 s on the server |
-| Backlinks, Missing tab (50), All tab (3,000) | from the texts | from the stored links, same results |
-| JavaScript heap | 25 MB | 8 MB |
-
-Sign-in now grows with the number of tiddlers rather than with their text: the list is about 0.5 KB a tiddler, most of it the titles each one links to. Full-text search and `<<todo>>` are slower because they read the whole table on the server instead of text already in memory.
-
-One automated run stopped responding to a mouse click after the `<<todo>>` step. The same steps, repeated one by one and as a whole, took 24–780 ms each, and the stall has not come back.
+**Conclusion.** Sign-in grows with the number of tiddlers, not with their text: the list is about 0.5 KB a tiddler, most of it the titles each one links to. Full-text search and `<<todo>>` read the whole table on the server, so they take a few seconds on a wiki of this size.
 
 ## Limits
 

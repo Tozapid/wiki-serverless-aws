@@ -1,1 +1,23 @@
 # Changelog
+
+## 2026-09-27
+
+### Changed
+
+- The text of a tiddler is loaded when the tiddler is opened. Sign-in gets a list without text: 1.46 MB instead of 12.8 MB for 3,000 tiddlers, 4.4 s instead of 7.3 s.
+- Links of each tiddler are worked out on save and kept in the table. Backlinks and the Missing tab use them. Tiddlers saved before get their links on the first listing.
+- Full-text search and `<<todo>>` run on the server. Titles and tags are still searched at once in the browser.
+- The DynamoDB index `tiddlers` holds everything but the text (`INCLUDE` projection).
+- The built-in help is called `$:/Markup` instead of `$:/Разметка`.
+
+### Fixed
+
+- An open preview in the editor stayed at "Loading…" when a text or the task list arrived after it was drawn.
+- A tiddler deleted on the server while its text was being loaded was asked for again on every redraw.
+- The last step of the GitHub Actions workflow did not parse as YAML, so the first run did not start.
+
+### Added
+
+- Stress test with 3,000 tiddlers in the README.
+- Link to the demo in the README.
+- The wiki: tiddlers with tags, links, history, drafts, task lists, media and four interface languages, on S3, CloudFront, API Gateway, Lambda, DynamoDB and Cognito. Public demo on the CloudFront address with an hourly reset, deployed by GitHub Actions with state in S3.
