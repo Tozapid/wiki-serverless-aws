@@ -18,6 +18,7 @@
 
 ### Added
 
+- Frontend tests in `tests/web/`: markup renderer, translations, link and task rules against the Lambda, and the interface in headless Chrome. GitHub Actions runs them, the Lambda tests and the Terraform checks as three separate jobs; plan and apply wait for all three.
 - Stress test with 3,000 tiddlers in the README.
 - Link to the demo in the README.
 - The wiki: tiddlers with tags, links, history, drafts, task lists, media and four interface languages, on S3, CloudFront, API Gateway, Lambda, DynamoDB and Cognito. Public demo on the CloudFront address with an hourly reset, deployed by GitHub Actions with state in S3.

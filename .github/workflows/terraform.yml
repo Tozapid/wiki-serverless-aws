@@ -21,36 +21,64 @@ env:
   TERRAFORM_VERSION: "1.16.3"
 
 jobs:
-  check:
-    name: Format, validate, tests
+  terraform:
+    name: Terraform format and validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
       - name: terraform fmt
         run: terraform fmt -check -recursive
       - name: terraform validate
         run: |
           terraform init -backend=false
           terraform validate
-      - name: Lambda tests
+
+  lambda:
+    name: Lambda tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests
         run: |
           pip install --quiet boto3
           cd lambda && python -m unittest -v lambda_app_test reset_test
+
+  web:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The parity test runs the Lambda link and task rules next to the page's.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tests/web/package-lock.json
       - name: JavaScript syntax
         run: for f in web/*.js cloudfront/*.js; do node --check "$f"; done
+      - name: Install
+        working-directory: tests/web
+        run: npm ci
+      # The runner image has Google Chrome; the interface tests drive it.
+      - name: Tests
+        working-directory: tests/web
+        run: |
+          CHROME_PATH="$(command -v google-chrome)"
+          export CHROME_PATH
+          npm test
 
   plan:
     name: Plan
-    needs: check
+    needs: [terraform, lambda, web]
     # Pull requests from forks get no secrets, so only this repository's branches are planned.
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
@@ -78,7 +106,7 @@ jobs:
 
   apply:
     name: Apply
-    needs: check
+    needs: [terraform, lambda, web]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment: demo

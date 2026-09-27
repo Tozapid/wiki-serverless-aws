@@ -101,9 +101,9 @@ Prices are approximate and change over time; check the AWS pricing pages for you
 
 `.github/workflows/terraform.yml`:
 
-- every push and pull request: `terraform fmt`, `terraform validate`, Lambda unit tests, JavaScript syntax check;
+- every push and pull request, three jobs side by side: `terraform fmt` and `terraform validate`; Lambda tests; frontend tests (see [Tests](#tests));
 - pull requests from this repository: `terraform plan`, summary in the run;
-- push to `main` or a manual run: plan and apply. The job stops if the plan would destroy or replace a bucket, the table or the user pool; such a change has to be applied by hand.
+- push to `main` or a manual run: plan and apply once all three pass. The job stops if the plan would destroy or replace a bucket, the table or the user pool; such a change has to be applied by hand.
 
 The site address is printed in the run summary and in `terraform output site_url`.
 
@@ -115,7 +115,6 @@ terraform init \
   -backend-config="key=wiki-serverless-aws/terraform.tfstate" \
   -backend-config="region=eu-central-1"
 terraform apply
-cd lambda && python -m unittest lambda_app_test reset_test
 ```
 
 ### Demo or private wiki
@@ -139,8 +138,33 @@ The defaults set up the public demo. For a private wiki, change them in a `terra
 | `web/` | The page: `app.js` (interface), `wikitext.js` (markup), `i18n.js` (translations), `styles.css`, `index.html` |
 | `lambda/lambda_app.py` | API, with tests in `lambda_app_test.py` |
 | `lambda/reset.py` | Hourly demo reset, with tests in `reset_test.py` |
+| `tests/web/` | Frontend tests |
 | `cloudfront/api_host.js` | CloudFront function that passes the site address to the API for the file cookie |
 | `.github/workflows/` | CI and deployment |
+
+## Tests
+
+```bash
+cd lambda && python -m unittest -v lambda_app_test reset_test
+cd tests/web && npm ci && npm test
+```
+
+**Lambda** (`lambda/*_test.py`, Python `unittest`). The handlers run against in-memory stand-ins for DynamoDB, S3 and Cognito, with requests built the way API Gateway sends them:
+
+- tiddlers: create, edit with a stale `etag`, rename, delete, history; the list without text, texts in batches, links worked out for old tiddlers, server search and tasks;
+- open tiddlers and drafts per user, draft limits, error messages in the page language, titles that would break links;
+- administration: only the `admins` group gets in, invite, disable and delete users, no locking yourself out, cleanup of only old unused files;
+- CloudFront cookie signing, checked byte for byte against `openssl`;
+- the demo reset: wipes the table, every file version and other users, and brings the admin back.
+
+**Frontend** (`tests/web/`, `node --test`):
+
+| File | What it checks |
+| --- | --- |
+| `wikitext.test.js` | The markup renderer in jsdom: wikitext and Markdown, links, lists, tables, media, transclusion and its depth limit, macros, task lists. Text such as `<script>`, `onerror=` or `javascript:` links never turns into anything that runs. |
+| `i18n.test.js` | Every interface string has English, French and Italian text with the same `{placeholders}`; help in each language; the system language is picked unless one was chosen; plural forms. |
+| `parity.test.js` | The page and the Lambda find the same links and tasks in about 500 documents, since backlinks and `<<todo>>` come from the server. Needs `python3`. |
+| `ui.test.js` | The page in headless Chrome against an in-memory API: sign-in, only the texts on screen are loaded, create and edit, a conflicting save keeps the editor, ticking a task, `<<todo>>`, search, open tiddlers after a reload, switching language. Chrome is found on the usual paths or taken from `CHROME_PATH`; without it these tests are skipped locally and fail in CI. |
 
 ## Stress test
 
