@@ -179,7 +179,7 @@ class FakeDynamo:
 
 
 def event(method, path, body=None, params=None, email="person@example.com", groups=None):
-    claims = {"email": email}
+    claims = {"email": email, "email_verified": "true"}
     if groups is not None:
         claims["cognito:groups"] = groups
     return {
@@ -379,6 +379,14 @@ class AdminTest(unittest.TestCase):
 
     def test_unknown_user_is_404(self):
         self.assertEqual(self.admin("PUT", "/api/admin/users", {"email": "nobody@example.com", "enabled": False})[0], 404)
+
+    def test_unverified_email_is_refused(self):
+        unverified = event("GET", "/api/state", email="boss@example.com")
+        unverified["requestContext"]["authorizer"]["jwt"]["claims"]["email_verified"] = "false"
+        self.assertEqual(lambda_app.handler(unverified, None)["statusCode"], 403)
+        no_email = event("GET", "/api/me")
+        del no_email["requestContext"]["authorizer"]["jwt"]["claims"]["email"]
+        self.assertEqual(lambda_app.handler(no_email, None)["statusCode"], 403)
 
     def test_admin_cannot_lock_themselves_out(self):
         self.assertEqual(self.admin("PUT", "/api/admin/users", {"email": "boss@example.com", "enabled": False})[0], 400)

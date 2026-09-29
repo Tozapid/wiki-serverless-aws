@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-29
+
+### Security
+
+- Users can no longer change their own email. The app client let a signed-in user rewrite it with `UpdateUserAttributes`; the new, unverified address went into the ID token, and the API then treated that user as the owner of someone else's open tiddlers and drafts and signed edits with their email. Administrator rights were not reachable this way: they come from the group. The client now writes only `locale` (an empty list would allow every standard attribute).
+- The API accepts only tokens with a verified email (`email_verified`) and answers 403 otherwise.
+
 ## 2026-09-27
 
 ### Changed
