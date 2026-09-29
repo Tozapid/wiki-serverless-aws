@@ -70,6 +70,8 @@ data "aws_iam_policy_document" "lambda" {
     actions = [
       "cognito-idp:ListUsers",
       "cognito-idp:ListUsersInGroup",
+      "cognito-idp:AdminGetUser",
+      "cognito-idp:AdminSetUserMFAPreference",
       "cognito-idp:AdminCreateUser",
       "cognito-idp:AdminDeleteUser",
       "cognito-idp:AdminDisableUser",

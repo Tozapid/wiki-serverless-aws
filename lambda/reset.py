@@ -133,6 +133,13 @@ def reset_users(pool, admin_email, password_parameter, admin_group):
             MessageAction="SUPPRESS",
         )
     cognito.admin_set_user_password(UserPoolId=pool, Username=admin_email, Password=password, Permanent=True)
+    # Anyone can sign in as the demo admin and turn on an authenticator app,
+    # which would lock everyone else out; the reset takes it off again.
+    cognito.admin_set_user_mfa_preference(
+        UserPoolId=pool,
+        Username=admin_email,
+        SoftwareTokenMfaSettings={"Enabled": False, "PreferredMfa": False},
+    )
     cognito.admin_enable_user(UserPoolId=pool, Username=admin_email)
     cognito.admin_add_user_to_group(UserPoolId=pool, Username=admin_email, GroupName=admin_group)
     # Old sessions end, so nobody keeps editing the wiped wiki from a stale tab.

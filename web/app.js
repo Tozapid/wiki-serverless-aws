@@ -103,6 +103,7 @@
     const code = error && (error.code || error.name);
     if (code === "NotAuthorizedException" || code === "UserNotFoundException") return t("Неверная почта или пароль");
     if (code === "InvalidPasswordException") return t("Пароль должен быть от 8 символов и содержать строчную букву и цифру");
+    if (code === "CodeMismatchException" || code === "EnableSoftwareTokenMFAException" || code === "ExpiredCodeException") return t("Неверный код");
     return (error && error.message) || t("Не получилось");
   }
 
@@ -241,6 +242,7 @@
             user.completeNewPasswordChallenge(password.value, {}, {
               onSuccess: () => boot(),
               onFailure: (err) => { error.textContent = authMessage(err); },
+              totpRequired: () => showTotp(user),
             });
           },
         }, [
@@ -253,6 +255,42 @@
     password.focus();
   }
 
+  // A user with an authenticator app is asked for its code after the password.
+  // Cognito gives three minutes for it; after that the password is asked again.
+  function showTotp(user) {
+    const error = el("p", { class: "error", role: "alert" });
+    const code = el("input", { type: "text", inputmode: "numeric", autocomplete: "one-time-code", pattern: "[0-9]{6}", maxlength: "6", required: true });
+    root.replaceChildren(el("main", { class: "login" }, [
+      el("section", { class: "login-card" }, [
+        el("h1", {}, t("Код из приложения")),
+        el("p", { class: "lede" }, t("Введите шестизначный код из приложения-аутентификатора.")),
+        el("form", {
+          onsubmit: (event) => {
+            event.preventDefault();
+            user.sendMFACode(code.value.trim(), {
+              onSuccess: () => boot(),
+              onFailure: (err) => {
+                if ((err && (err.code || err.name)) === "NotAuthorizedException") {
+                  showLogin(t("Время на ввод кода вышло. Войдите ещё раз."));
+                  return;
+                }
+                error.textContent = authMessage(err);
+                code.value = "";
+                code.focus();
+              },
+            }, "SOFTWARE_TOKEN_MFA");
+          },
+        }, [
+          el("label", {}, [t("Код"), code]),
+          el("button", { class: "primary", type: "submit" }, t("Войти")),
+          error,
+        ]),
+        el("button", { type: "button", class: "link-button", onclick: () => showLogin() }, t("Назад")),
+      ]),
+    ]));
+    code.focus();
+  }
+
   function signIn(email, password, errorNode) {
     const user = new window.AmazonCognitoIdentity.CognitoUser({ Username: email, Pool: userPool() });
     user.authenticateUser(new window.AmazonCognitoIdentity.AuthenticationDetails({
@@ -262,6 +300,7 @@
       onSuccess: () => boot(),
       onFailure: (error) => { errorNode.textContent = authMessage(error); },
       newPasswordRequired: () => showNewPassword(user),
+      totpRequired: () => showTotp(user),
     });
   }
 
@@ -286,6 +325,77 @@
         });
       });
     });
+  }
+
+  // Authenticator app (TOTP). Cognito keeps the secret; the page shows it
+  // once as a QR code while the app is being connected.
+
+  function signedInUser() {
+    return new Promise((resolve, reject) => {
+      const user = userPool().getCurrentUser();
+      if (!user) return reject(sessionExpired());
+      user.getSession((error) => (error ? reject(error) : resolve(user)));
+    });
+  }
+
+  function totpEnabled(user) {
+    return new Promise((resolve, reject) => {
+      user.getUserData((error, data) => {
+        if (error) reject(error);
+        else resolve((data.UserMFASettingList || []).includes("SOFTWARE_TOKEN_MFA"));
+      }, { bypassCache: true });
+    });
+  }
+
+  function newTotpSecret(user) {
+    return new Promise((resolve, reject) => {
+      user.associateSoftwareToken({ associateSecretCode: resolve, onFailure: reject });
+    });
+  }
+
+  function verifyTotp(user, code) {
+    return new Promise((resolve, reject) => {
+      user.verifySoftwareToken(code, t("Вики"), { onSuccess: resolve, onFailure: reject });
+    });
+  }
+
+  function setTotp(user, enabled) {
+    return new Promise((resolve, reject) => {
+      user.setUserMfaPreference(null, { Enabled: enabled, PreferredMfa: enabled }, (error) => (error ? reject(error) : resolve()));
+    });
+  }
+
+  // The QR code is drawn as SVG from the qrcode-generator matrix, dark on
+  // white in both themes so that phone cameras read it.
+  function qrCode(text) {
+    if (!window.qrcode) return null;
+    const qr = window.qrcode(0, "M");
+    qr.addData(text);
+    qr.make();
+    const count = qr.getModuleCount();
+    const size = count + 8;
+    let d = "";
+    for (let row = 0; row < count; row += 1) {
+      for (let col = 0; col < count; col += 1) {
+        if (qr.isDark(row, col)) d += "M" + (col + 4) + " " + (row + 4) + "h1v1h-1z";
+      }
+    }
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 " + size + " " + size);
+    svg.setAttribute("class", "qr");
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", t("QR-код для приложения-аутентификатора"));
+    const back = document.createElementNS(ns, "rect");
+    back.setAttribute("width", size);
+    back.setAttribute("height", size);
+    back.setAttribute("fill", "#fff");
+    const dots = document.createElementNS(ns, "path");
+    dots.setAttribute("d", d);
+    dots.setAttribute("fill", "#000");
+    dots.setAttribute("shape-rendering", "crispEdges");
+    svg.append(back, dots);
+    return svg;
   }
 
   // Store --------------------------------------------------------------
@@ -1762,7 +1872,7 @@
     } catch (error) {
       // Offline or signed out: show what the current session allows.
     }
-    const sections = [["password", t("Пароль")], ["language", t("Язык")]];
+    const sections = [["password", t("Пароль")], ["totp", t("Вход в два шага")], ["language", t("Язык")]];
     if (state.admin) sections.push(["users", t("Пользователи")], ["files", t("Файлы")]);
     let current = sections.some(([key]) => key === section) ? section : "password";
     const body = el("div", { class: "settings-body" });
@@ -1792,6 +1902,7 @@
       if (current === "language") languageSection(body);
       else if (current === "users") usersSection(body);
       else if (current === "files") filesSection(body);
+      else if (current === "totp") totpSection(body);
       else passwordSection(body, wrap);
     }
     document.querySelector(".dialog-wrap")?.remove();
@@ -1835,6 +1946,107 @@
       error,
     ]));
     oldPassword.focus();
+  }
+
+  async function totpSection(body) {
+    body.append(el("p", { class: "muted" }, t("Проверяю…")));
+    let user;
+    let enabled;
+    try {
+      user = await signedInUser();
+      enabled = await totpEnabled(user);
+    } catch (error) {
+      body.replaceChildren(el("p", { class: "error" }, authMessage(error)));
+      return;
+    }
+    draw();
+
+    function draw() {
+      body.replaceChildren(
+        el("p", { class: "totp-status" }, [
+          el("strong", {}, enabled ? t("Включён.") : t("Выключен.")),
+          " ",
+          enabled
+            ? t("После пароля вики спрашивает код из приложения-аутентификатора.")
+            : t("Можно включить: после пароля вики будет спрашивать шестизначный код из приложения-аутентификатора, например Google Authenticator, Microsoft Authenticator, 1Password или Aegis."),
+        ]),
+        el("div", { class: "dialog-actions start" }, enabled
+          ? [
+            el("button", { type: "button", onclick: () => setup() }, t("Подключить другое приложение")),
+            el("button", { type: "button", class: "danger", onclick: () => disable() }, t("Выключить")),
+          ]
+          : [el("button", { type: "button", class: "primary", onclick: () => setup() }, t("Включить"))]),
+        el("p", { class: "hint" }, t("Если телефон потерян, администратор может сбросить вход в два шага в разделе «Пользователи».")),
+      );
+    }
+
+    async function refresh() {
+      try {
+        enabled = await totpEnabled(user);
+      } catch (error) {
+        toast(authMessage(error));
+      }
+      draw();
+    }
+
+    async function disable() {
+      if (!window.confirm(t("Выключить вход в два шага? Входить можно будет по одному паролю."))) return;
+      try {
+        await setTotp(user, false);
+        toast(t("Вход в два шага выключен"));
+      } catch (error) {
+        toast(authMessage(error));
+      }
+      await refresh();
+    }
+
+    // Cognito drops the old app as soon as a new secret is issued, so until the
+    // new code is confirmed the account signs in with the password alone.
+    async function setup() {
+      let secret;
+      try {
+        secret = await newTotpSecret(user);
+      } catch (error) {
+        toast(authMessage(error));
+        return;
+      }
+      const issuer = window.location.hostname;
+      const uri = "otpauth://totp/" + encodeURIComponent(issuer + ":" + state.email)
+        + "?secret=" + secret + "&issuer=" + encodeURIComponent(issuer);
+      const error = el("p", { class: "error", role: "alert" });
+      const code = el("input", { type: "text", inputmode: "numeric", autocomplete: "one-time-code", pattern: "[0-9]{6}", maxlength: "6", required: true });
+      body.replaceChildren(
+        el("ol", { class: "totp-steps" }, [
+          el("li", {}, t("Отсканируйте QR-код приложением-аутентификатором.")),
+          el("li", {}, t("Введите код, который покажет приложение.")),
+        ]),
+        qrCode(uri),
+        el("p", { class: "hint" }, [t("Если отсканировать не получается, введите в приложении ключ:"), " ", el("code", { class: "totp-secret" }, secret.replace(/(.{4})/g, "$1 ").trim())]),
+        el("form", {
+          onsubmit: async (event) => {
+            event.preventDefault();
+            try {
+              await verifyTotp(user, code.value.trim());
+              await setTotp(user, true);
+              toast(t("Вход в два шага включён"));
+              await refresh();
+            } catch (err) {
+              error.textContent = authMessage(err);
+              code.value = "";
+              code.focus();
+            }
+          },
+        }, [
+          el("label", {}, [t("Код из приложения"), code]),
+          el("div", { class: "dialog-actions" }, [
+            el("button", { type: "button", onclick: () => refresh() }, t("Отмена")),
+            el("button", { type: "submit", class: "primary" }, t("Подтвердить")),
+          ]),
+          error,
+        ]),
+      );
+      code.focus();
+    }
   }
 
   function secretNote(email, password, kind) {
@@ -1907,10 +2119,11 @@
         return;
       }
       list.replaceChildren(el("table", { class: "users" }, [
-        el("thead", {}, el("tr", {}, [t("Почта"), t("Статус"), t("Админ"), ""].map((text) => el("th", {}, text)))),
+        el("thead", {}, el("tr", {}, [t("Почта"), t("Статус"), "2FA", t("Админ"), ""].map((text) => el("th", {}, text)))),
         el("tbody", {}, users.map((user) => el("tr", { class: user.enabled ? "" : "disabled" }, [
           el("td", {}, [user.email, user.self ? el("span", { class: "muted" }, " " + t("(вы)")) : null]),
           el("td", {}, user.enabled ? USER_STATUS[user.status] || user.status : t("Отключён")),
+          el("td", { class: user.mfa ? "" : "muted" }, [el("span", { class: "narrow-only" }, "2FA: "), user.mfa ? t("включён") : t("нет")]),
           el("td", {}, el("label", { class: "admin-toggle" }, [
             el("input", {
               type: "checkbox",
@@ -1923,6 +2136,7 @@
           ])),
           el("td", { class: "row-actions" }, user.self ? null : [
             el("button", { type: "button", onclick: () => change(user, { reset_password: true }, t("Выдать {email} новый временный пароль? Старый перестанет работать.", { email: user.email })) }, t("Новый пароль")),
+            user.mfa ? el("button", { type: "button", onclick: () => change(user, { reset_mfa: true }, t("Сбросить вход в два шага у {email}? Входить можно будет по одному паролю, приложение подключается заново в настройках.", { email: user.email })) }, t("Сбросить 2FA")) : null,
             el("button", { type: "button", onclick: () => change(user, { enabled: !user.enabled }) }, user.enabled ? t("Отключить") : t("Включить")),
             el("button", { type: "button", class: "danger", onclick: () => remove(user) }, t("Удалить")),
           ]),

@@ -86,6 +86,9 @@ class FakeCognito:
     def admin_add_user_to_group(self, **kwargs):
         self.calls.append(("group", kwargs["Username"], kwargs["GroupName"]))
 
+    def admin_set_user_mfa_preference(self, **kwargs):
+        self.calls.append(("mfa", kwargs["Username"], kwargs["SoftwareTokenMfaSettings"]["Enabled"]))
+
     def admin_user_global_sign_out(self, **kwargs):
         self.calls.append(("sign_out", kwargs["Username"]))
 
@@ -118,6 +121,7 @@ class ResetTest(unittest.TestCase):
         self.assertEqual(self.cognito.users, {"uuid-admin": "Admin@Example.com"})
         self.assertEqual(result["users"], {"removed": 1, "admin_recreated": False})
         self.assertIn(("password", "admin@example.com", "admin123", True), self.cognito.calls)
+        self.assertIn(("mfa", "admin@example.com", False), self.cognito.calls)
         self.assertIn(("group", "admin@example.com", "admins"), self.cognito.calls)
         self.assertEqual(self.cognito.calls[-1], ("sign_out", "admin@example.com"))
 

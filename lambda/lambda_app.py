@@ -516,10 +516,18 @@ def list_users(event):
                 "enabled": bool(user.get("Enabled", True)),
                 "created": iso(user.get("UserCreateDate")),
                 "admin": email in admins,
+                "mfa": has_mfa(pool, user.get("Username")),
                 "self": email == actor(event),
             })
     users.sort(key=lambda user: user["email"])
     return response(200, {"items": users})
+
+
+# ListUsers does not say whether a user has an authenticator app, so each user
+# is asked for separately. The wiki has a handful of users.
+def has_mfa(pool, username):
+    user = cognito().admin_get_user(UserPoolId=pool, Username=username)
+    return "SOFTWARE_TOKEN_MFA" in (user.get("UserMFASettingList") or [])
 
 
 def create_user(event):
@@ -570,6 +578,14 @@ def update_user(event):
             cognito().admin_add_user_to_group(UserPoolId=pool, Username=email, GroupName=admin_group())
         else:
             cognito().admin_remove_user_from_group(UserPoolId=pool, Username=email, GroupName=admin_group())
+    # A user who lost their phone signs in with the password alone and can set
+    # up the app again in the settings.
+    if body.get("reset_mfa"):
+        cognito().admin_set_user_mfa_preference(
+            UserPoolId=pool,
+            Username=email,
+            SoftwareTokenMfaSettings={"Enabled": False, "PreferredMfa": False},
+        )
     if body.get("reset_password"):
         password = temporary_password()
         cognito().admin_set_user_password(UserPoolId=pool, Username=email, Password=password, Permanent=False)

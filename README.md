@@ -10,7 +10,7 @@ Notes are *tiddlers*: a title, text and tags. Open tiddlers form a story river; 
 
 Sign in with `admin@example.com` / `admin123` (the fields are filled in for you).
 
-The demo is public and wiped every hour: all tiddlers, drafts, uploaded files and users go away, and the admin password is put back. A few example tiddlers — a video, a photo, a table, task lists and lorem ipsum — are written again after each wipe, so they are always there. Invitations do not send email in the demo; the temporary password is shown to the administrator instead.
+The demo is public and wiped every hour: all tiddlers, drafts, uploaded files and users go away, and the admin password is put back. Two-step sign-in works in the demo too; the wipe turns it off for the admin, so nobody can lock the shared account for longer than an hour. A few example tiddlers — a video, a photo, a table, task lists and lorem ipsum — are written again after each wipe, so they are always there. Invitations do not send email in the demo; the temporary password is shown to the administrator instead.
 
 ## Features
 
@@ -21,7 +21,8 @@ The demo is public and wiped every hour: all tiddlers, drafts, uploaded files an
 - Task lists (`* [ ] task`) with live checkboxes and a `<<todo>>` summary.
 - Photo upload with a desktop-sized WebP copy and the original on click; video player for mp4/webm/mov/ogv.
 - Interface in English, Russian, French and Italian, following the system language.
-- Settings for administrators: invite, disable and delete users; remove files no tiddler refers to.
+- Optional two-step sign-in with an authenticator app (TOTP), turned on, switched to another app or off in the settings by each user.
+- Settings for administrators: invite, disable and delete users, see who has two-step sign-in and reset it for a lost phone; remove files no tiddler refers to.
 
 Text is never parsed as HTML: the page builds DOM nodes itself, and uploaded files are served with a sandboxing Content-Security-Policy.
 

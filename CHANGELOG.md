@@ -2,6 +2,15 @@
 
 ## 2026-09-29
 
+### Added
+
+- Optional two-step sign-in with an authenticator app (TOTP). Settings → "Two-step sign-in" connects an app by QR code or key and a check code, switches to another app or turns it off. Sign-in asks for the code after the password, also after a temporary password is replaced.
+- The users list has a 2FA column; an administrator can reset two-step sign-in for someone who lost their phone.
+- The Cognito user pool allows TOTP as an option (`mfa_configuration = "OPTIONAL"`); the API Lambda may call `AdminGetUser` and `AdminSetUserMFAPreference`.
+- The QR code is drawn by `qrcode-generator` 1.4.4 from jsDelivr, loaded with an integrity hash.
+- The hourly demo reset turns two-step sign-in off for the admin.
+- Interface tests for the code step at sign-in, the settings and the users list.
+
 ### Security
 
 - Users can no longer change their own email. The app client let a signed-in user rewrite it with `UpdateUserAttributes`; the new, unverified address went into the ID token, and the API then treated that user as the owner of someone else's open tiddlers and drafts and signed edits with their email. Administrator rights were not reachable this way: they come from the group. The client now writes only `locale` (an empty list would allow every standard attribute).

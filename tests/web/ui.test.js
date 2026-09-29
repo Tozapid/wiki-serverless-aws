@@ -33,8 +33,12 @@ const CONFIG = "window.WIKI_CONFIG = " + JSON.stringify({
 }) + ";";
 
 // Enough of amazon-cognito-identity-js for the page: one user, the session kept in localStorage.
+// "test-totp" in localStorage means the user has an authenticator app; its code is always 123456.
+const TOTP_CODE = "123456";
+const TOTP_SECRET = "JBSWY3DPEHPK3PXP";
 const COGNITO = `(() => {
   const KEY = "test-session";
+  const TOTP = "test-totp";
   const session = () => ({
     isValid: () => true,
     getRefreshToken: () => "refresh",
@@ -44,6 +48,16 @@ const COGNITO = `(() => {
     getSession: (done) => done(null, session()),
     refreshSession: (token, done) => done(null, session()),
     signOut: () => localStorage.removeItem(KEY),
+    getUserData: (done) => done(null, { UserMFASettingList: localStorage.getItem(TOTP) ? ["SOFTWARE_TOKEN_MFA"] : [] }),
+    associateSoftwareToken: (callbacks) => callbacks.associateSecretCode(${JSON.stringify(TOTP_SECRET)}),
+    verifySoftwareToken: (code, name, callbacks) => (code === ${JSON.stringify(TOTP_CODE)}
+      ? callbacks.onSuccess({ Status: "SUCCESS" })
+      : callbacks.onFailure({ code: "EnableSoftwareTokenMFAException", message: "Code mismatch" })),
+    setUserMfaPreference: (sms, totp, done) => {
+      if (totp.Enabled) localStorage.setItem(TOTP, "1");
+      else localStorage.removeItem(TOTP);
+      done(null, "SUCCESS");
+    },
   });
   window.AmazonCognitoIdentity = {
     CognitoUserPool: function () { this.getCurrentUser = () => (localStorage.getItem(KEY) ? user() : null); },
@@ -51,15 +65,25 @@ const COGNITO = `(() => {
     CognitoUser: function (data) {
       this.authenticateUser = (details, callbacks) => {
         if (details.data.Password === ${JSON.stringify(ADMIN.password)}) {
+          if (localStorage.getItem(TOTP)) return callbacks.totpRequired("SOFTWARE_TOKEN_MFA", {});
           localStorage.setItem(KEY, "1");
           callbacks.onSuccess(session());
         } else {
           callbacks.onFailure({ code: "NotAuthorizedException", message: "Incorrect username or password." });
         }
       };
+      this.sendMFACode = (code, callbacks, type) => {
+        if (type !== "SOFTWARE_TOKEN_MFA" || code !== ${JSON.stringify(TOTP_CODE)}) {
+          return callbacks.onFailure({ code: "CodeMismatchException", message: "Invalid code received for user" });
+        }
+        localStorage.setItem(KEY, "1");
+        callbacks.onSuccess(session());
+      };
     },
   };
 })();`;
+
+const QRCODE = fs.readFileSync(require.resolve("qrcode-generator/qrcode.js"));
 
 const TYPES = { ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".html": "text/html" };
 
@@ -67,7 +91,7 @@ const TYPES = { ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg
 function fakeApi(tiddlers) {
   const store = new Map();
   const calls = [];
-  const state = { story: null, drafts: new Map() };
+  const state = { story: null, drafts: new Map(), guestMfa: true };
   let clock = Date.parse("2026-09-01T10:00:00Z");
   const stamp = () => new Date((clock += 60000)).toISOString();
   const etag = () => Math.random().toString(16).slice(2);
@@ -138,7 +162,13 @@ function fakeApi(tiddlers) {
         state.drafts.delete(q("key"));
         return [200, {}];
       case "GET /admin/users":
-        return [200, { items: [{ email: ADMIN.email, status: "CONFIRMED", enabled: true, admin: true, self: true }] }];
+        return [200, { items: [
+          { email: ADMIN.email, status: "CONFIRMED", enabled: true, admin: true, mfa: false, self: true },
+          { email: "guest@example.com", status: "CONFIRMED", enabled: true, admin: false, mfa: state.guestMfa, self: false },
+        ] }];
+      case "PUT /admin/users":
+        if (body.reset_mfa) state.guestMfa = false;
+        return [200, { email: body.email }];
       default:
         return [404, { error: "Not found" }];
     }
@@ -186,6 +216,10 @@ async function openWiki(t, { signedIn = true, lang = "en", api = fakeApi(SAMPLE)
     const url = new URL(request.url());
     const reply = (status, contentType, body) => request.respond({ status, contentType, body });
     if (url.hostname === "cdn.jsdelivr.net" && url.pathname.includes("amazon-cognito-identity")) return reply(200, "text/javascript", COGNITO);
+    // The real file from npm, so the page's integrity hash is checked too.
+    if (url.hostname === "cdn.jsdelivr.net" && url.pathname.startsWith("/npm/qrcode-generator@")) {
+      return request.respond({ status: 200, contentType: "text/javascript", headers: { "Access-Control-Allow-Origin": "*" }, body: QRCODE });
+    }
     if (url.origin !== ORIGIN) return request.abort();
     if (url.pathname.startsWith("/api/")) {
       const body = request.postData() ? JSON.parse(request.postData()) : null;
@@ -211,6 +245,18 @@ async function openWiki(t, { signedIn = true, lang = "en", api = fakeApi(SAMPLE)
 const card = (title) => `[data-card=${JSON.stringify(title)}]`;
 const text = (page, selector) => page.$eval(selector, (node) => node.textContent);
 const titles = (page, selector) => page.$$eval(selector, (nodes) => nodes.map((node) => node.dataset.card || node.dataset.title || node.textContent));
+
+// Clicks the first element matching the selector whose text is exactly `label`.
+async function clickText(page, selector, label) {
+  await page.waitForFunction((selector, label) => [...document.querySelectorAll(selector)].some((node) => node.textContent === label), {}, selector, label);
+  await page.evaluate((selector, label) => [...document.querySelectorAll(selector)].find((node) => node.textContent === label).click(), selector, label);
+}
+
+async function openSettings(page, tab) {
+  await page.waitForSelector(card("Home"));
+  await clickText(page, "button", "Settings");
+  await clickText(page, ".dialog [role=tab]", tab);
+}
 
 async function until(check, message) {
   const end = Date.now() + 5000;
@@ -352,4 +398,64 @@ test("the interface follows the chosen language", async (t) => {
   await page.select(".lang-select", "it");
   await page.waitForFunction(() => document.documentElement.lang === "it" && document.querySelector(".login button.primary"));
   assert.equal(await text(page, ".login button.primary"), "Accedi");
+});
+
+test("sign in asks for the authenticator code", async (t) => {
+  const wiki = await openWiki(t, { signedIn: false });
+  if (!wiki) return;
+  const { page } = wiki;
+  await page.waitForSelector(".login form");
+  await page.evaluate(() => localStorage.setItem("test-totp", "1"));
+  await page.$eval('input[type="password"]', (node, password) => { node.value = password; }, ADMIN.password);
+  await page.click(".login button.primary");
+  await page.waitForSelector('.login input[autocomplete="one-time-code"]');
+  assert.equal(await text(page, ".login h1"), "Code from the app");
+
+  await page.type('.login input[autocomplete="one-time-code"]', "000000");
+  await page.click(".login button.primary");
+  await until(async () => (await text(page, ".login .error")) === "Wrong code", "wrong code message");
+
+  await page.type('.login input[autocomplete="one-time-code"]', TOTP_CODE);
+  await page.click(".login button.primary");
+  await page.waitForSelector(card("Home") + " .body h2");
+});
+
+test("two-step sign-in is turned on and off in the settings", async (t) => {
+  const wiki = await openWiki(t);
+  if (!wiki) return;
+  const { page } = wiki;
+  await openSettings(page, "Two-step sign-in");
+  await page.waitForSelector(".totp-status");
+  assert.match(await text(page, ".totp-status"), /^Off\./);
+
+  await clickText(page, ".settings-body button", "Enable");
+  await page.waitForSelector(".settings-body svg.qr path");
+  assert.ok((await page.$eval(".settings-body svg.qr path", (node) => node.getAttribute("d").length)) > 1000, "the QR code has modules");
+  assert.equal(await text(page, ".totp-secret"), "JBSW Y3DP EHPK 3PXP");
+
+  await page.type('.settings-body input[autocomplete="one-time-code"]', "000000");
+  await clickText(page, ".settings-body button", "Confirm");
+  await until(async () => (await text(page, ".settings-body .error")) === "Wrong code", "wrong code message");
+  await page.type('.settings-body input[autocomplete="one-time-code"]', TOTP_CODE);
+  await clickText(page, ".settings-body button", "Confirm");
+  await until(async () => /^On\./.test(await text(page, ".totp-status")), "status after turning on");
+  assert.equal(await page.evaluate(() => localStorage.getItem("test-totp")), "1");
+
+  await clickText(page, ".settings-body button", "Turn off");
+  await until(async () => /^Off\./.test(await text(page, ".totp-status")), "status after turning off");
+  assert.equal(await page.evaluate(() => localStorage.getItem("test-totp")), null);
+});
+
+test("the users list shows two-step sign-in and resets it", async (t) => {
+  const wiki = await openWiki(t);
+  if (!wiki) return;
+  const { page, api } = wiki;
+  await openSettings(page, "Users");
+  await page.waitForSelector("table.users tbody tr");
+  const rows = () => page.$$eval("table.users tbody tr", (nodes) => nodes.map((node) => [...node.children].map((cell) => cell.textContent)));
+  assert.deepEqual((await rows()).map((cells) => cells[2]), ["2FA: off", "2FA: on"]);
+  await clickText(page, "table.users button", "Reset 2FA");
+  await until(async () => (await rows())[1][2] === "2FA: off", "2FA reset");
+  assert.deepEqual(api.routes("PUT /admin/users").map((call) => call.body), [{ email: "guest@example.com", reset_mfa: true }]);
+  assert.equal(await page.$$eval("table.users button", (nodes) => nodes.filter((node) => node.textContent === "Reset 2FA").length), 0);
 });

@@ -106,6 +106,16 @@ class FakeCognito:
     def admin_remove_user_from_group(self, UserPoolId, Username, GroupName):
         self.groups[GroupName].discard(Username)
 
+    def admin_get_user(self, UserPoolId, Username):
+        if Username not in self.users:
+            raise ClientError("UserNotFoundException")
+        return {"Username": Username, "UserMFASettingList": ["SOFTWARE_TOKEN_MFA"] if self.users[Username].get("mfa") else []}
+
+    def admin_set_user_mfa_preference(self, UserPoolId, Username, SoftwareTokenMfaSettings):
+        if Username not in self.users:
+            raise ClientError("UserNotFoundException")
+        self.users[Username]["mfa"] = SoftwareTokenMfaSettings["Enabled"]
+
     def admin_set_user_password(self, UserPoolId, Username, Password, Permanent):
         self.users[Username].update(password=Password, UserStatus="FORCE_CHANGE_PASSWORD")
 
@@ -376,6 +386,17 @@ class AdminTest(unittest.TestCase):
         self.assertEqual(self.admin("DELETE", "/api/admin/users", params={"email": "new@example.com"})[0], 200)
         self.assertNotIn("new@example.com", self.cognito.users)
         self.assertFalse([key for key in self.table.items if key[0] == "U#new@example.com"])
+
+    def test_mfa_status_and_reset(self):
+        self.cognito.users["phone@example.com"] = {"Username": "phone@example.com", "UserStatus": "CONFIRMED", "Enabled": True,
+                                                   "UserCreateDate": datetime.now(timezone.utc), "mfa": True}
+        users = {u["email"]: u for u in self.admin("GET", "/api/admin/users")[1]["items"]}
+        self.assertTrue(users["phone@example.com"]["mfa"])
+        self.assertFalse(users["boss@example.com"]["mfa"])
+        self.assertEqual(call("PUT", "/api/admin/users", {"email": "phone@example.com", "reset_mfa": True})[0], 403)
+        self.assertEqual(self.admin("PUT", "/api/admin/users", {"email": "phone@example.com", "reset_mfa": True})[0], 200)
+        self.assertFalse(self.cognito.users["phone@example.com"]["mfa"])
+        self.assertEqual(self.admin("PUT", "/api/admin/users", {"email": "nobody@example.com", "reset_mfa": True})[0], 404)
 
     def test_unknown_user_is_404(self):
         self.assertEqual(self.admin("PUT", "/api/admin/users", {"email": "nobody@example.com", "enabled": False})[0], 404)
