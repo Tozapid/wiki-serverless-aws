@@ -761,6 +761,22 @@ button.danger:hover:not(:disabled) { border-color: var(--danger); }
   user-select: all;
 }
 
+.totp-status { margin: 0 0 12px; }
+
+.totp-steps { margin: 0 0 8px; padding-left: 20px; }
+
+.qr { display: block; width: 200px; height: 200px; margin: 8px 0; border-radius: 4px; }
+
+.totp-secret {
+  font-family: var(--mono);
+  padding: 1px 5px;
+  background: var(--accent-soft);
+  border-radius: 4px;
+  color: var(--ink);
+  user-select: all;
+  word-break: break-all;
+}
+
 table.users { border-collapse: collapse; width: 100%; font-size: 14px; }
 
 table.users th, table.users td {

@@ -2,7 +2,12 @@ resource "aws_cognito_user_pool" "main" {
   name                     = local.name
   username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
-  mfa_configuration        = "OFF"
+  # Each user turns on an authenticator app in the settings if they want to.
+  mfa_configuration = "OPTIONAL"
+
+  software_token_mfa_configuration {
+    enabled = true
+  }
 
   password_policy {
     minimum_length                   = var.password_min_length

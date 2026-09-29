@@ -69,6 +69,7 @@ data "aws_iam_policy_document" "reset" {
       "cognito-idp:AdminDeleteUser",
       "cognito-idp:AdminCreateUser",
       "cognito-idp:AdminSetUserPassword",
+      "cognito-idp:AdminSetUserMFAPreference",
       "cognito-idp:AdminEnableUser",
       "cognito-idp:AdminAddUserToGroup",
       "cognito-idp:AdminUserGlobalSignOut",
