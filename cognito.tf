@@ -59,8 +59,10 @@ resource "aws_cognito_user_pool_client" "web" {
     refresh_token = "days"
   }
 
-  read_attributes  = ["email", "email_verified"]
-  write_attributes = ["email"]
+  read_attributes = ["email", "email_verified"]
+  # The email names the user in the API, so users cannot change it. An empty
+  # list would let the client write every standard attribute, hence locale.
+  write_attributes = ["locale"]
 }
 
 resource "aws_cognito_user" "admin" {

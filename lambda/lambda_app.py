@@ -859,9 +859,14 @@ def response(status, payload):
     }
 
 
+# The email in the ID token names the user's stories, drafts and edits. Only a
+# verified email counts: an unverified one could be any address.
 def actor(event):
     claims = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {})
-    return claims.get("email") or claims.get("cognito:username") or claims.get("sub") or "unknown"
+    email = str(claims.get("email") or "").lower()
+    if not email or str(claims.get("email_verified")).lower() != "true":
+        raise ApiError(403, "Почта не подтверждена")
+    return email
 
 
 def encode_cursor(key):
@@ -1136,6 +1141,7 @@ MESSAGES = {
         "Il y a déjà {count} brouillons. Enregistrez ou annulez certaines modifications.",
         "Ci sono già {count} bozze. Salva o annulla alcune modifiche.",
     ),
+    "Почта не подтверждена": ("The email is not verified", "L’adresse e-mail n’est pas vérifiée", "L’email non è verificata"),
     "Нужны права администратора": ("Administrator rights are needed", "Droits d’administrateur requis", "Servono i diritti di amministratore"),
     "Такой пользователь уже есть": ("This user already exists", "Cet utilisateur existe déjà", "Questo utente esiste già"),
     "Нельзя отключить самого себя": ("You cannot disable yourself", "Vous ne pouvez pas vous désactiver", "Non puoi disattivare te stesso"),
