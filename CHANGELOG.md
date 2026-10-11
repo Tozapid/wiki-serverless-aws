@@ -4,6 +4,9 @@
 
 ### Changed
 
+- The sign-in page no longer says it is for invited users only; it links to the source code on GitHub beside the language menu, as Hide My Email does.
+- The new password fields ask for 8 characters, as the user pool does; they asked for 12.
+- Settings as in Hide My Email: the new password is typed twice; two-factor authentication (the name in place of "two-step sign-in" everywhere) shows its state and one button, and pairs in two numbered steps (scan the code or type the key, then the code from the app); the language is a drop-down, as on the sign-in page.
 - The index of the DynamoDB table names its keys with `key_schema` blocks instead of `hash_key` and `range_key`, which the AWS provider deprecates inside `global_secondary_index` (6.68).
 - `.terraform.lock.hcl` is no longer kept in the repository (it is in `.gitignore`): `terraform init` takes the newest AWS provider within the constraint in `terraform.tf`.
 
