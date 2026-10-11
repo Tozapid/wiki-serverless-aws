@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-11
+
+### Changed
+
+- Deploy from a branch: a manual run of the workflow applies the branch it was started from, not only `main`, over the same demo site; the run summary names the branch and warns that the next push to `main` replaces it. Applies from different branches wait for each other.
+- The page: one design shared with the sibling projects (Hide My Email, the box inventory and the wiki): the same block of variables and components opens `web/styles.css` in all three and is kept identical — an indigo accent, system fonts, rounded cards, fields, buttons, dialogs, settings, tables and toasts. Light and dark themes follow the system setting. Tiddlers are plain cards without the coloured spine, an edited one is outlined in the accent; headings use the system font instead of a serif; tags and task counts are accent pills. The image viewer stays dark in both themes.
+- New favicon in the shared style: a page on indigo.
+
 ## 2026-09-29
 
 ### Added
