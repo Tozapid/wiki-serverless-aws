@@ -48,6 +48,7 @@ const COGNITO = `(() => {
     getSession: (done) => done(null, session()),
     refreshSession: (token, done) => done(null, session()),
     signOut: () => localStorage.removeItem(KEY),
+    changePassword: (oldPassword, newPassword, done) => done(null, "SUCCESS"),
     getUserData: (done) => done(null, { UserMFASettingList: localStorage.getItem(TOTP) ? ["SOFTWARE_TOKEN_MFA"] : [] }),
     associateSoftwareToken: (callbacks) => callbacks.associateSecretCode(${JSON.stringify(TOTP_SECRET)}),
     verifySoftwareToken: (code, name, callbacks) => (code === ${JSON.stringify(TOTP_CODE)}
@@ -420,11 +421,30 @@ test("sign in asks for the authenticator code", async (t) => {
   await page.waitForSelector(card("Home") + " .body h2");
 });
 
-test("two-step sign-in is turned on and off in the settings", async (t) => {
+test("the new password is typed twice", async (t) => {
+  const opened = await openWiki(t);
+  if (!opened) return;
+  const { page } = opened;
+  await openSettings(page, "Password");
+  await page.waitForSelector('.settings-body input[autocomplete="current-password"]');
+  const [next, again] = await page.$$('.settings-body input[autocomplete="new-password"]');
+  await page.type('.settings-body input[autocomplete="current-password"]', "old-Password-1");
+  await next.type("new-Password-12");
+  await again.type("new-Password-13");
+  await clickText(page, ".settings-body button", "Change password");
+  await until(async () => (await text(page, ".settings-body .error")) === "The new passwords do not match", "mismatch message");
+  await again.click({ clickCount: 3 });
+  await again.type("new-Password-12");
+  await clickText(page, ".settings-body button", "Change password");
+  await until(async () => (await text(page, ".toast")) === "Password changed", "changed message");
+  assert.equal(await page.$eval('.settings-body input[autocomplete="current-password"]', (node) => node.value), "", "the form is cleared");
+});
+
+test("two-factor authentication is turned on and off in the settings", async (t) => {
   const wiki = await openWiki(t);
   if (!wiki) return;
   const { page } = wiki;
-  await openSettings(page, "Two-step sign-in");
+  await openSettings(page, "Two-factor authentication");
   await page.waitForSelector(".totp-status");
   assert.match(await text(page, ".totp-status"), /^Off\./);
 
@@ -434,11 +454,11 @@ test("two-step sign-in is turned on and off in the settings", async (t) => {
   assert.equal(await text(page, ".totp-secret"), "JBSW Y3DP EHPK 3PXP");
 
   await page.type('.settings-body input[autocomplete="one-time-code"]', "000000");
-  await clickText(page, ".settings-body button", "Confirm");
+  await clickText(page, ".settings-body button", "Verify and turn on");
   await until(async () => (await text(page, ".settings-body .error")) === "Wrong code", "wrong code message");
   await page.type('.settings-body input[autocomplete="one-time-code"]', TOTP_CODE);
-  await clickText(page, ".settings-body button", "Confirm");
-  await until(async () => /^On\./.test(await text(page, ".totp-status")), "status after turning on");
+  await clickText(page, ".settings-body button", "Verify and turn on");
+  await until(async () => /^on Signing in needs a code/.test(await text(page, ".totp-status")), "status after turning on");
   assert.equal(await page.evaluate(() => localStorage.getItem("test-totp")), "1");
 
   await clickText(page, ".settings-body button", "Turn off");
@@ -446,7 +466,7 @@ test("two-step sign-in is turned on and off in the settings", async (t) => {
   assert.equal(await page.evaluate(() => localStorage.getItem("test-totp")), null);
 });
 
-test("the users list shows two-step sign-in and resets it", async (t) => {
+test("the users list shows two-factor authentication and resets it", async (t) => {
   const wiki = await openWiki(t);
   if (!wiki) return;
   const { page, api } = wiki;
