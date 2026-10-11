@@ -26,9 +26,16 @@ resource "aws_dynamodb_table" "tiddlers" {
   }
 
   global_secondary_index {
-    name      = "tiddlers"
-    hash_key  = "gsi1pk"
-    range_key = "gsi1sk"
+    name = "tiddlers"
+    # key_schema in place of hash_key and range_key, deprecated in the index.
+    key_schema {
+      attribute_name = "gsi1pk"
+      key_type       = "HASH"
+    }
+    key_schema {
+      attribute_name = "gsi1sk"
+      key_type       = "RANGE"
+    }
     # Everything but the text: the page lists tiddlers at sign-in and loads a
     # text only when that tiddler is opened.
     projection_type    = "INCLUDE"

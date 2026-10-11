@@ -4,6 +4,7 @@
 
 ### Changed
 
+- The index of the DynamoDB table names its keys with `key_schema` blocks instead of `hash_key` and `range_key`, which the AWS provider deprecates inside `global_secondary_index` (6.68).
 - `.terraform.lock.hcl` is no longer kept in the repository (it is in `.gitignore`): `terraform init` takes the newest AWS provider within the constraint in `terraform.tf`.
 
 ## 2026-10-11
