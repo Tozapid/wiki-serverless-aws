@@ -115,6 +115,16 @@ function fakeApi(tiddlers) {
     calls.push({ route, query: Object.fromEntries(url.searchParams), body });
     const q = (name) => url.searchParams.get(name);
     switch (route) {
+      case "GET /version":
+        return [200, {
+          version: "v1.3.0",
+          repository: "Tozapid/wiki-serverless-aws",
+          url: "https://github.com/Tozapid/wiki-serverless-aws/releases",
+          latest: "v1.3.0",
+          newer: [],
+          checked_at: "2026-10-12T12:00:00Z",
+          error: null,
+        }];
       case "GET /tiddlers": {
         // Two per page, so the page has to follow the cursor.
         const all = [...store.values()];
@@ -464,6 +474,17 @@ test("two-factor authentication is turned on and off in the settings", async (t)
   await clickText(page, ".settings-body button", "Turn off");
   await until(async () => /^Off\./.test(await text(page, ".totp-status")), "status after turning off");
   assert.equal(await page.evaluate(() => localStorage.getItem("test-totp")), null);
+});
+
+test("the version tab says when this is the newest release", async (t) => {
+  const wiki = await openWiki(t);
+  if (!wiki) return;
+  const { page } = wiki;
+  await openSettings(page, "Version");
+  await page.waitForSelector(".version-facts");
+  assert.equal(await text(page, ".version-facts"), "Versionv1.3.0RepositoryTozapid/wiki-serverless-aws");
+  assert.equal(await text(page, ".totp-status"), "up to date This is the newest release.");
+  assert.equal(await page.$(".releases"), null);
 });
 
 test("the users list shows two-factor authentication and resets it", async (t) => {

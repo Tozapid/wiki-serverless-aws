@@ -1878,6 +1878,7 @@
     }
     const sections = [["password", t("Пароль")], ["totp", t("Двухфакторная аутентификация")], ["language", t("Язык")]];
     if (state.admin) sections.push(["users", t("Пользователи")], ["files", t("Файлы")]);
+    sections.push(["version", t("Версия")]);
     let current = sections.some(([key]) => key === section) ? section : "password";
     const body = el("div", { class: "settings-body" });
     const tabs = el("div", { class: "tabs", role: "tablist" });
@@ -1904,6 +1905,7 @@
       }, label)));
       body.replaceChildren();
       if (current === "language") languageSection(body);
+      else if (current === "version") versionSection(body);
       else if (current === "users") usersSection(body);
       else if (current === "files") filesSection(body);
       else if (current === "totp") totpSection(body);
@@ -1912,6 +1914,41 @@
     document.querySelector(".dialog-wrap")?.remove();
     document.body.append(wrap);
     draw();
+  }
+
+  // The version of the site and the releases of the demo repository that came
+  // after it, with their notes. The API reads them from GitHub and keeps them
+  // an hour.
+  async function versionSection(body) {
+    body.append(el("p", { class: "muted" }, t("Проверяю…")));
+    let info;
+    try {
+      info = await api("/version");
+    } catch (error) {
+      body.replaceChildren(el("p", { class: "error" }, error.message));
+      return;
+    }
+    const link = (href, text) => el("a", { href, target: "_blank", rel: "noopener" }, text);
+    let status;
+    if (info.error) status = el("p", { class: "error" }, t("GitHub не ответил, релизы не получены. Попробуйте позже."));
+    else if (!info.repository) status = el("p", { class: "muted" }, t("Проверка релизов выключена."));
+    else if (!info.latest) status = el("p", { class: "muted" }, t("Релизов пока нет."));
+    else if (!info.newer.length) status = el("p", { class: "totp-status" }, [el("span", { class: "badge ok" }, t("актуальна")), " ", t("Это последний релиз.")]);
+    else status = el("p", { class: "totp-status" }, [el("span", { class: "badge warn" }, t("есть новее")), " ", t("Вышло после этой версии: {count}", { count: info.newer.length })]);
+    body.replaceChildren(
+      el("dl", { class: "version-facts" }, [
+        el("dt", {}, t("Версия")),
+        el("dd", {}, info.version && info.url ? link(info.url + "/tag/" + encodeURIComponent(info.version), info.version) : info.version || "—"),
+        el("dt", {}, t("Репозиторий")),
+        el("dd", {}, info.repository ? link(info.url, info.repository) : "—"),
+      ]),
+      status,
+      info.newer.length ? el("ul", { class: "releases" }, info.newer.map((release) => el("li", {}, [
+        el("strong", {}, link(release.url, release.title)),
+        release.date ? el("span", { class: "muted" }, " · " + release.date) : null,
+        release.notes ? el("p", { class: "release-notes" }, release.notes) : null,
+      ]))) : null,
+    );
   }
 
   // The same drop-down as on the sign-in page; switching reloads the page.

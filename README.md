@@ -20,6 +20,7 @@ The demo is public and wiped every hour: all tiddlers, drafts, uploaded files an
 - Autosaved drafts and open tiddlers, per user, restored on any device.
 - Task lists (`* [ ] task`) with live checkboxes and a `<<todo>>` summary.
 - Photo upload with a desktop-sized WebP copy and the original on click; video player for mp4/webm/mov/ogv.
+- Settings → Version: the version of the site and the releases of the demo repository that came after it, with their notes.
 - Interface in English, Russian, French and Italian, following the system language.
 - Optional two-factor authentication with an authenticator app (TOTP), turned on or off in the settings by each user. Changing the password asks for the new one twice.
 - Settings for administrators: invite, disable and delete users, see who has two-factor authentication and reset it for a lost phone; remove files no tiddler refers to.
@@ -119,12 +120,21 @@ Prices are approximate and change over time; check the AWS pricing pages for you
 - every push and pull request, three jobs side by side: `terraform fmt` and `terraform validate`; the Lambda tests; the page's syntax check and its tests, where there are any;
 - pull requests from this repository: `terraform plan` in the environment `demo`, summary in the run;
 - a push to `main` or a manual run: plan and apply in the environment `demo`. The job stops if the plan would destroy or replace a bucket, the table or the user pool; such a change has to be applied by hand. A manual run from another branch (Actions → terraform → Run workflow, pick the branch) deploys that branch the same way, over the same site: handy to try a change on the demo before merging. The next push to `main` puts main back. Applies run one at a time across branches.
+- after `main` is deployed: the GitHub release of the newest `CHANGELOG.md` entry, once (see [Versions and releases](#versions-and-releases)). The caller grants `contents: write` for it.
 
 `main` takes changes only through pull requests, merged by squash once the three checks pass (`ci / Terraform format and validate`, `ci / Lambda tests`, `ci / Frontend tests`); the branch is deleted after the merge.
 
 The jobs get AWS credentials from GitHub's OIDC token (`permissions: id-token: write`, `aws-actions/configure-aws-credentials` with `role-to-assume`): no AWS key is stored anywhere, and a token lives for one job.
 
 The site address is printed in the run summary and in `terraform output site_url`.
+
+### Versions and releases
+
+Every entry of [`CHANGELOG.md`](CHANGELOG.md) starts with a version and a date, and may add a title: `## v1.4.0 — 2026-10-12` or `## v1.4.0 — 2026-10-12 — versions`. A pull request that changes the site adds an entry with a higher version: minor for a feature, patch for a fix. The check `ci / Terraform format and validate` refuses a newest entry without one.
+
+- The site takes its version from the newest entry when Terraform deploys it (`local.version` in `lambda.tf`).
+- After `main` is deployed, the job `ci / Release` makes the tag and the GitHub release of the newest entry, with its text as the notes, unless that version is out already. A pull request without a new entry releases nothing.
+- Settings → Version shows the version and the releases of `releases_repository` (this repository by default) that came after it. The API (`GET /api/version`) reads them from the Atom feed of the GitHub releases (`https://github.com/<repository>/releases.atom`) and keeps them an hour. It does not use the REST API, whose hourly limit without a token is shared by every function behind Lambda's addresses. A copy deployed from a fork can compare itself with this repository by naming it in `releases_repository`; an empty value turns the check off.
 
 ### From a workstation
 
