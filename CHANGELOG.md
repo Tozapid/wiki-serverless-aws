@@ -63,7 +63,6 @@
 - Links of each tiddler are worked out on save and kept in the table. Backlinks and the Missing tab use them. Tiddlers saved before get their links on the first listing.
 - Full-text search and `<<todo>>` run on the server. Titles and tags are still searched at once in the browser.
 - The DynamoDB index `tiddlers` holds everything but the text (`INCLUDE` projection).
-- The built-in help is called `$:/Markup` instead of `$:/Разметка`.
 
 ### Fixed
 
