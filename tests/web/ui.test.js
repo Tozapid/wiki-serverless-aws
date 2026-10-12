@@ -485,6 +485,7 @@ test("the version tab says when this is the newest release", async (t) => {
   assert.equal(await text(page, ".version-facts"), "Versionv1.3.0RepositoryTozapid/wiki-serverless-aws");
   assert.equal(await text(page, ".totp-status"), "up to date This is the newest release.");
   assert.equal(await page.$(".releases"), null);
+  assert.doesNotMatch(await text(page, ".settings-body"), /null/, "no empty part shown as text");
 });
 
 test("the users list shows two-factor authentication and resets it", async (t) => {

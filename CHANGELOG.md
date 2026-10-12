@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.4.1
+
+### Fixed
+
+- Settings → Version showed the word "null" under the version when no newer release was out.
+
+### Changed
+
+- A `CHANGELOG.md` entry no longer needs a date: `## v1.4.1`, `## v1.4.1 — 2026-10-12` and `## v1.4.1 — a title` all work. GitHub dates the release itself.
+
 ## v1.4.0 — 2026-10-12
 
 ### Added
@@ -53,7 +63,6 @@
 - Links of each tiddler are worked out on save and kept in the table. Backlinks and the Missing tab use them. Tiddlers saved before get their links on the first listing.
 - Full-text search and `<<todo>>` run on the server. Titles and tags are still searched at once in the browser.
 - The DynamoDB index `tiddlers` holds everything but the text (`INCLUDE` projection).
-- The built-in help is called `$:/Markup` instead of `$:/Разметка`.
 
 ### Fixed
 
