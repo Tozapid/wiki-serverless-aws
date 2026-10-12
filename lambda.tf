@@ -31,6 +31,8 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
+      VERSION                  = local.version
+      RELEASES_REPOSITORY      = var.releases_repository
       TABLE_NAME               = aws_dynamodb_table.tiddlers.name
       FILES_BUCKET             = aws_s3_bucket.files.id
       FILE_MAX_BYTES           = tostring(var.file_max_bytes)
@@ -48,4 +50,10 @@ resource "aws_lambda_function" "api" {
   }
 
   depends_on = [aws_iam_role_policy.lambda]
+}
+
+# The version of this deployment: the newest entry of CHANGELOG.md
+# (## vX.Y.Z — date). After main is deployed, CI releases it on GitHub.
+locals {
+  version = regex("(?m)^## (v[0-9]+\\.[0-9]+\\.[0-9]+) ", file("${path.module}/CHANGELOG.md"))[0]
 }

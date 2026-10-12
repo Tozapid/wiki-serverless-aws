@@ -1,6 +1,13 @@
 # Changelog
 
-## 2026-10-12
+## v1.4.0 — 2026-10-12
+
+### Added
+
+- Settings → Version: the version of the site and the releases of the demo repository that came after it, with their notes. The API reads them from the Atom feed of the GitHub releases (`GET /api/version`) and keeps them an hour.
+- Versions: every entry of this changelog starts with `vX.Y.Z`. After `main` is deployed, CI makes the tag and the GitHub release of the newest entry if it is not out yet. The site takes its version from the newest entry when it is deployed; `releases_repository` names the repository to compare with.
+
+## v1.3.0 — 2026-10-12
 
 ### Changed
 
@@ -10,7 +17,7 @@
 - The index of the DynamoDB table names its keys with `key_schema` blocks instead of `hash_key` and `range_key`, which the AWS provider deprecates inside `global_secondary_index` (6.68).
 - `.terraform.lock.hcl` is no longer kept in the repository (it is in `.gitignore`): `terraform init` takes the newest AWS provider within the constraint in `terraform.tf`.
 
-## 2026-10-11
+## v1.2.0 — 2026-10-11
 
 ### Changed
 
@@ -21,7 +28,7 @@
 - The page: one design shared with the sibling projects (Hide My Email, the box inventory and the wiki): the same block of variables and components opens `web/styles.css` in all three and is kept identical — an indigo accent, system fonts, rounded cards, fields, buttons, dialogs, settings, tables and toasts. Light and dark themes follow the system setting. Tiddlers are plain cards without the coloured spine, an edited one is outlined in the accent; headings use the system font instead of a serif; tags and task counts are accent pills. The image viewer stays dark in both themes.
 - New favicon in the shared style: a page on indigo.
 
-## 2026-09-29
+## v1.1.0 — 2026-09-29
 
 ### Added
 
@@ -37,7 +44,7 @@
 - Users can no longer change their own email. The app client let a signed-in user rewrite it with `UpdateUserAttributes`; the new, unverified address went into the ID token, and the API then treated that user as the owner of someone else's open tiddlers and drafts and signed edits with their email. Administrator rights were not reachable this way: they come from the group. The client now writes only `locale` (an empty list would allow every standard attribute).
 - The API accepts only tokens with a verified email (`email_verified`) and answers 403 otherwise.
 
-## 2026-09-27
+## v1.0.0 — 2026-09-27
 
 ### Changed
 
