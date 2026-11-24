@@ -12,7 +12,7 @@ locals {
     mp4  = "video/mp4"
     webm = "video/webm"
   }
-  seed_files = var.reset_schedule == "" ? toset([]) : fileset("${path.module}/seed/files", "*")
+  seed_files = !local.reset ? toset([]) : fileset("${path.module}/seed/files", "*")
 }
 
 resource "aws_s3_object" "seed" {

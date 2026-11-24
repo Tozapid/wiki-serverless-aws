@@ -9,7 +9,7 @@ const puppeteer = require("puppeteer-core");
 const { WEB, loadPage } = require("./load");
 
 const ORIGIN = "https://wiki.test";
-const ADMIN = { email: "admin@example.com", password: "admin123" };
+const ADMIN = { email: "admin@example.com", password: "Demo-Password-1" };
 const { WikiText } = loadPage({ lang: "en" });
 
 function chromePath() {
@@ -284,7 +284,7 @@ test("sign in with the demo account", async (t) => {
   const { page, api } = wiki;
   await page.waitForSelector(".login form");
   assert.equal(await page.$eval('input[type="email"]', (node) => node.value), ADMIN.email);
-  assert.match(await text(page, ".demo-note"), /admin@example\.com \/ admin123/);
+  assert.match(await text(page, ".demo-note"), /admin@example\.com \/ Demo-Password-1/);
 
   await page.$eval('input[type="password"]', (node) => { node.value = "wrong"; });
   await page.click(".login button.primary");

@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.6.0
+
+### Changed
+
+- The repository is a Terraform module: the root makes no providers and no backend (the caller passes `aws` and `aws.global`), and a wiki is a module call pinned to a release tag, `git::https://github.com/Tozapid/wiki-serverless-aws.git?ref=vX.Y.Z`; a newer version of a wiki is a newer `ref`. The public demo is a call of the module in `demo/`, which the CI deploys (`working_directory: demo`); `demo/moved.tf` moves its resources under `module.wiki` in the state. The defaults are those of a private wiki (`demo = false`, no reset, invitation mails on); `name` and `admin_email` have none. The region comes from the provider, the tags from its `default_tags`; the zips of the functions are built in `.build/` of the root module. `examples/production/main.tf` is a starting point for production.
+- A wiki on its own domain: `domain_name` and `route53_zone_name` add the certificate, the alias of the distribution and the A and AAAA records; the invitation and the uploads name that address. Empty, the wiki answers at its CloudFront address, as the demo does.
+- Passwords have at least 12 characters with upper and lower case letters, a digit and a symbol, in the user pool and in the fields of the page; `password_min_length` is gone. The demo administrator signs in with `Demo-Password-1`.
+- Without a reset (`reset_schedule = ""`) none of its resources is made, the demo password in SSM included; `admin_password` empty makes Cognito mail the first user a temporary password. Apply no longer takes back a password or language the first user changed.
+- New input `files_key_from` (see Fixed).
+- Phones: fields have 16 px text on a touch screen, so an iPhone no longer zooms into the page when one takes the focus, and a dialog fits the visible screen (`100dvh`).
+
+### Fixed
+
+- A preview could not be deployed once the account held ten CloudFront public keys (`TooManyPublicKeys`), a limit that is not raised. A preview (`<name>-pr<N>`) now signs attachment cookies with the key of the main site, which publishes its ids in the SSM parameter `/<name>/cloudfront-key-ids`; the main demo has to be deployed with it before the next preview. `files_key_from` names another stack, `""` gives a stack a key of its own.
+
 ## v1.5.0
 
 ### Added
