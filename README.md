@@ -95,7 +95,7 @@ The root of this repository is the module. It makes no providers: the caller pas
 
 ```hcl
 module "wiki" {
-  source = "git::https://github.com/Tozapid/wiki-serverless-aws.git?ref=v1.6.0"
+  source = "git::https://github.com/Tozapid/wiki-serverless-aws.git?ref=v1.6.1"
 
   providers = {
     aws        = aws
@@ -203,7 +203,7 @@ The bucket is yours, in the same account: its policy has to let `delivery.logs.a
 | Path | What is there |
 | --- | --- |
 | `*.tf` | The module: its providers (`aws`, `aws.global`), inputs and outputs |
-| `demo/` | The public demo, a call of the module, and the moves of its state |
+| `demo/` | The public demo, a call of the module |
 | `examples/production/` | A starting point for production |
 | `web/` | The page: `app.js` (interface), `wikitext.js` (markup), `i18n.js` (translations), `styles.css`, `index.html` |
 | `lambda/lambda_app.py` | API, with tests in `lambda_app_test.py` |
