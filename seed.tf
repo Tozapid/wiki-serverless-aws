@@ -1,4 +1,4 @@
-# Example files of the demo. The hourly reset writes the tiddlers from
+# Example files of the demo. The reset writes the tiddlers from
 # seed/tiddlers.json again and leaves files/seed/ alone; the API's cleanup of
 # unused files skips it too. A private wiki without a reset gets neither.
 

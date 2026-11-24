@@ -1,6 +1,6 @@
 # The public demo: the module of this repository at its CloudFront address,
 # with the admin sign-in published on the page, no invitation mails and the
-# hourly reset. The CI of the repository deploys it from this directory.
+# reset six hours after a change. The CI of the repository deploys it from this directory.
 provider "aws" {
   region = var.region
 
@@ -30,7 +30,7 @@ module "wiki" {
   demo               = true
   admin_email        = "admin@example.com"
   admin_password     = "Demo-Password-1"
-  reset_schedule     = "rate(1 hour)"
+  reset_delay_hours  = 6
   access_logs_bucket = var.access_logs_bucket
   files_key_from     = var.files_key_from
 }

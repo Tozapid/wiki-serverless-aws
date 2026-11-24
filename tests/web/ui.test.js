@@ -24,12 +24,13 @@ function chromePath() {
   return candidates.find((file) => file && fs.existsSync(file));
 }
 
-const CONFIG = "window.WIKI_CONFIG = " + JSON.stringify({
+// demo: the public demo, whose settings have no password or 2FA.
+const config = (demo = true) => "window.WIKI_CONFIG = " + JSON.stringify({
   region: "eu-central-1",
   userPoolId: "eu-central-1_test",
   clientId: "test",
   apiBase: "/api",
-  demo: { email: ADMIN.email, password: ADMIN.password, reset: "rate(1 hour)" },
+  demo: demo ? { email: ADMIN.email, password: ADMIN.password, reset: 6 } : null,
 }) + ";";
 
 // Enough of amazon-cognito-identity-js for the page: one user, the session kept in localStorage.
@@ -209,7 +210,7 @@ test.after(async () => {
 });
 
 // A fresh browser profile and a fresh API for each test.
-async function openWiki(t, { signedIn = true, lang = "en", api = fakeApi(SAMPLE) } = {}) {
+async function openWiki(t, { signedIn = true, lang = "en", demo = true, api = fakeApi(SAMPLE) } = {}) {
   if (!executablePath) {
     if (process.env.CI) throw new Error("Chrome not found; set CHROME_PATH");
     t.skip("Chrome not found; set CHROME_PATH to run the interface tests");
@@ -237,7 +238,7 @@ async function openWiki(t, { signedIn = true, lang = "en", api = fakeApi(SAMPLE)
       const [status, data] = api.handle(request.method(), url, body);
       return reply(status, "application/json", JSON.stringify(data));
     }
-    if (url.pathname === "/config.js") return reply(200, "text/javascript", CONFIG);
+    if (url.pathname === "/config.js") return reply(200, "text/javascript", config(demo));
     const file = path.join(WEB, url.pathname === "/" ? "index.html" : path.normalize(url.pathname));
     if (!file.startsWith(WEB) || !fs.existsSync(file)) return reply(404, "text/plain", "not found");
     return reply(200, TYPES[path.extname(file)] || "application/octet-stream", fs.readFileSync(file));
@@ -432,7 +433,7 @@ test("sign in asks for the authenticator code", async (t) => {
 });
 
 test("the new password is typed twice", async (t) => {
-  const opened = await openWiki(t);
+  const opened = await openWiki(t, { demo: false });
   if (!opened) return;
   const { page } = opened;
   await openSettings(page, "Password");
@@ -450,8 +451,17 @@ test("the new password is typed twice", async (t) => {
   assert.equal(await page.$eval('.settings-body input[autocomplete="current-password"]', (node) => node.value), "", "the form is cleared");
 });
 
-test("two-factor authentication is turned on and off in the settings", async (t) => {
+test("the demo has no password or 2FA of the shared administrator", async (t) => {
   const wiki = await openWiki(t);
+  if (!wiki) return;
+  const { page } = wiki;
+  await openSettings(page, "Language");
+  const tabs = await page.$$eval(".dialog [role=tab]", (nodes) => nodes.map((node) => node.textContent));
+  assert.ok(!tabs.includes("Password") && !tabs.includes("Two-factor authentication"), tabs.join(", "));
+});
+
+test("two-factor authentication is turned on and off in the settings", async (t) => {
+  const wiki = await openWiki(t, { demo: false });
   if (!wiki) return;
   const { page } = wiki;
   await openSettings(page, "Two-factor authentication");
