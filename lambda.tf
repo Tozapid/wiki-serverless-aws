@@ -8,7 +8,7 @@ resource "aws_cloudwatch_log_group" "lambda" {
 data "archive_file" "api" {
   type        = "zip"
   source_file = "${path.module}/lambda/lambda_app.py"
-  output_path = "${path.module}/.build/lambda_app.zip"
+  output_path = "${path.root}/.build/${local.name}-lambda_app.zip"
 }
 
 resource "aws_lambda_function" "api" {
@@ -36,11 +36,11 @@ resource "aws_lambda_function" "api" {
       TABLE_NAME               = aws_dynamodb_table.tiddlers.name
       FILES_BUCKET             = aws_s3_bucket.files.id
       FILE_MAX_BYTES           = tostring(var.file_max_bytes)
-      CLOUDFRONT_KEY_PAIR_ID   = aws_cloudfront_public_key.files.id
-      FILES_KEY_PARAMETER_NAME = aws_ssm_parameter.files_signing_key.name
+      CLOUDFRONT_KEY_PAIR_ID   = local.files_key.public_key_id
+      FILES_KEY_PARAMETER_NAME = local.files_key.private_key_parameter
       USER_POOL_ID             = aws_cognito_user_pool.main.id
       ADMIN_GROUP              = aws_cognito_user_group.admins.name
-      INVITE_EMAILS            = var.invite_emails ? "true" : "false"
+      INVITE_EMAILS            = var.invite_emails && !var.demo ? "true" : "false"
     }
   }
 
@@ -50,11 +50,4 @@ resource "aws_lambda_function" "api" {
   }
 
   depends_on = [aws_iam_role_policy.lambda]
-}
-
-# The version of this deployment: the newest entry of CHANGELOG.md
-# (## vX.Y.Z, then optionally " — " and a date or a title). After main is
-# deployed, CI releases it on GitHub.
-locals {
-  version = regex("(?m)^## (v[0-9]+\\.[0-9]+\\.[0-9]+)(?:\\s|$)", file("${path.module}/CHANGELOG.md"))[0]
 }

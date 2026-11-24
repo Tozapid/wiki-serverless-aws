@@ -13,7 +13,7 @@ data "aws_iam_policy_document" "lambda" {
   statement {
     sid       = "ReadFilesSigningKey"
     actions   = ["ssm:GetParameter"]
-    resources = [aws_ssm_parameter.files_signing_key.arn]
+    resources = ["arn:aws:ssm:${local.region}:${local.account_id}:parameter${local.files_key.private_key_parameter}"]
   }
 
   statement {

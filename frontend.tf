@@ -26,7 +26,7 @@ resource "aws_s3_object" "config" {
   content_type  = "text/javascript; charset=utf-8"
   cache_control = "no-cache"
   content = templatefile("${path.module}/web/config.js.tftpl", {
-    region       = var.region
+    region       = local.region
     user_pool_id = aws_cognito_user_pool.main.id
     client_id    = aws_cognito_user_pool_client.web.id
     api_base     = "/api"
@@ -34,5 +34,6 @@ resource "aws_s3_object" "config" {
     demo_email  = var.demo ? var.admin_email : ""
     demo_pass   = var.demo ? var.admin_password : ""
     reset_every = var.reset_schedule
+    help_title  = var.help_title
   })
 }

@@ -8,7 +8,7 @@ Notes are *tiddlers*: a title, text and tags. Open tiddlers form a story river; 
 
 **https://d1grd9lz4vxssg.cloudfront.net**
 
-Sign in with `admin@example.com` / `admin123` (the fields are filled in for you).
+Sign in with `admin@example.com` / `Demo-Password-1` (the fields are filled in for you).
 
 The demo is public and wiped every hour: all tiddlers, drafts, uploaded files and users go away, and the admin password is put back. Two-factor authentication works in the demo too; the wipe turns it off for the admin, so nobody can lock the shared account for longer than an hour. A few example tiddlers — a video, a photo, a table, task lists and lorem ipsum — are written again after each wipe, so they are always there. Invitations do not send email in the demo; the temporary password is shown to the administrator instead.
 
@@ -89,6 +89,51 @@ With **heavy use** — 1 million API calls and 10 GB of attachments — it grows
 
 Prices are approximate and change over time; check the AWS pricing pages for your region.
 
+## Use the module
+
+The root of this repository is the module. It makes no providers: the caller passes `aws` (the region of everything but CloudFront) and `aws.global` (`us-east-1`, CloudFront and its certificate). Every release of [`CHANGELOG.md`](CHANGELOG.md) is a tag `vX.Y.Z`; a wiki takes a newer version by a newer `ref`, and Settings → Version shows the version of the module and the releases after it.
+
+```hcl
+module "wiki" {
+  source = "git::https://github.com/Tozapid/wiki-serverless-aws.git?ref=v1.6.0"
+
+  providers = {
+    aws        = aws
+    aws.global = aws.global
+  }
+
+  name              = "wiki"
+  domain_name       = "wiki.example.com"
+  route53_zone_name = "example.com"
+  admin_email       = "you@example.com"
+}
+```
+
+[`examples/production/main.tf`](examples/production/main.tf) is that with its providers and backend. The inputs:
+
+| Variable | Default | What it is |
+| --- | --- | --- |
+| `name` | — | Prefix of every resource name; bucket names add the account id |
+| `admin_email` | — | The first user, an administrator |
+| `admin_password` | `""` | Its permanent password; empty: Cognito mails a temporary one |
+| `domain_name`, `route53_zone_name` | `""` | The wiki's name and its public Route 53 zone; empty: the `*.cloudfront.net` address |
+| `invite_emails` | `true` | Cognito mails the invitation with the temporary password; the demo never does |
+| `file_max_bytes` | 10 MB | Largest attachment, up to what you are ready to store |
+| `help_title` | `$:/Markup` | Title of the built-in help, which the wiki opens by default |
+| `demo` | `false` | Public demo: the sign-in published and filled in, no invitation mails, the attachments go with a destroy |
+| `reset_schedule` | `""` | The hourly reset of the demo (`rate(1 hour)` there) with the example tiddlers of `seed/` |
+| `access_logs_bucket` | `""` | Bucket of the access logs (see [Access logs](#access-logs)) |
+| `files_key_from` | preview: its site | Stack whose CloudFront key signs the attachment cookies |
+| `releases_repository` | `Tozapid/wiki-serverless-aws` | The releases Settings → Version compares with |
+
+Passwords have at least 12 characters with upper and lower case letters, a digit and a symbol. The zips of the functions are built at plan time in `.build/` of the root module, not of the module: a CI that carries what a plan makes to its apply leaves `.terraform/`, where a module fetched from git lives, behind.
+
+An account holds at most ten CloudFront public keys. A preview (`<name>-pr<N>`) therefore makes none: it signs the attachment cookies with the key of its main site, whose ids the main site keeps in the SSM parameter `/<name>/cloudfront-key-ids`, so the main demo has to be deployed before the first preview. `files_key_from` names another stack, or `""` gives a stack a key of its own.
+
+### The demo
+
+[`demo/`](demo) is the root module of the public demo: the module from `../` with `demo = true`, the published sign-in, no invitation mails, the hourly reset and no domain, so it answers at its CloudFront address and touches no DNS.
+
 ## Deploy
 
 ### What you need
@@ -115,13 +160,13 @@ Prices are approximate and change over time; check the AWS pricing pages for you
 
 ### GitHub Actions
 
-[`.github/workflows/terraform.yml`](.github/workflows/terraform.yml) only calls the shared workflow of [Tozapid/demo-ci-cd-skeleton](https://github.com/Tozapid/demo-ci-cd-skeleton); the same caller and the same jobs serve Hide-My-Email, inventory-serverless-aws and wiki-serverless-aws:
+[`.github/workflows/terraform.yml`](.github/workflows/terraform.yml) only calls the shared workflow of [Tozapid/demo-ci-cd-skeleton](https://github.com/Tozapid/demo-ci-cd-skeleton), with `working_directory: demo`; the same caller and the same jobs serve Hide-My-Email, inventory-serverless-aws and wiki-serverless-aws:
 
-- every push and pull request, three jobs side by side: `terraform fmt` and `terraform validate`; the Lambda tests; the page's syntax check and its tests, where there are any;
+- every push and pull request, three jobs side by side: `terraform fmt` and `terraform validate` of `demo/`, and with it of the module; the Lambda tests; the page's syntax check and its tests, where there are any;
 - pull requests from this repository: `terraform plan` in the environment `demo`, summary in the run;
 - a preview of a pull request, by hand: Run workflow with `preview` = its number deploys its last push once more as `wiki-serverless-pr<number>`, with its own state, and comments the address on it; it is destroyed when the pull request is merged or closed, by hand (`destroy`), or by the daily sweep, which also takes those not deployed for a week;
 - a push to `main` or a manual run: plan and apply in the environment `demo`. The job stops if the plan would destroy or replace a bucket, the table or the user pool; such a change has to be applied by hand. A manual run from another branch (Actions → terraform → Run workflow, pick the branch) deploys that branch the same way, over the same site: handy to try a change on the demo before merging. The next push to `main` puts main back. Applies run one at a time across branches.
-- after `main` is deployed: the GitHub release of the newest `CHANGELOG.md` entry, once (see [Versions and releases](#versions-and-releases)). The caller grants `contents: write` for it.
+- after `main` is deployed: the tag and the GitHub release of the newest `CHANGELOG.md` entry, once (see [Versions and releases](#versions-and-releases)). The caller grants `contents: write` for it.
 
 `main` takes changes only through pull requests, merged by squash once the three checks pass (`ci / Terraform format and validate`, `ci / Lambda tests`, `ci / Frontend tests`); the branch is deleted after the merge.
 
@@ -133,32 +178,20 @@ The site address is printed in the run summary and in `terraform output site_url
 
 Every entry of [`CHANGELOG.md`](CHANGELOG.md) starts with its version, optionally followed by a date or a title: `## v1.4.0`, `## v1.4.0 — 2026-10-12` or `## v1.4.0 — versions`. Inside an entry the changes go under `### Added`, `### Changed`, `### Fixed` and `### Security`, newest entry first. A pull request that changes the site adds an entry with a higher version: minor for a feature, patch for a fix. The check `ci / Terraform format and validate` refuses a newest entry without one.
 
-- The site takes its version from the newest entry when Terraform deploys it (`local.version` in `lambda.tf`).
-- After `main` is deployed, the job `ci / Release` makes the tag and the GitHub release of the newest entry, with its text as the notes, unless that version is out already. A pull request without a new entry releases nothing.
+- The site takes its version from the newest entry when Terraform deploys it (`local.version` in `locals.tf`).
+- After `main` is deployed, the job `ci / Release` makes the tag and the GitHub release of the newest entry, with its text as the notes, unless that version is out already. A pull request without a new entry releases nothing. Every version is a tag the wikis pin the module to; a change that a wiki has to take over is a new entry, and so a new tag.
 - Settings → Version shows the version and the releases of `releases_repository` (this repository by default) that came after it. The API (`GET /api/version`) reads them from the Atom feed of the GitHub releases (`https://github.com/<repository>/releases.atom`) and keeps them an hour. It does not use the REST API, whose hourly limit without a token is shared by every function behind Lambda's addresses. A copy deployed from a fork can compare itself with this repository by naming it in `releases_repository`; an empty value turns the check off.
 
 ### From a workstation
 
 ```bash
+cd demo
 terraform init \
   -backend-config="bucket=<state bucket>" \
   -backend-config="key=wiki-serverless-aws/terraform.tfstate" \
   -backend-config="region=eu-central-1"
 terraform apply
 ```
-
-### Demo or private wiki
-
-The defaults set up the public demo. For a private wiki, change them in a `terraform.tfvars`:
-
-| Variable | Demo | Private wiki |
-| --- | --- | --- |
-| `demo` | `true` — the sign-in screen shows and fills in the admin sign-in | `false` — nothing is shown |
-| `admin_email`, `admin_password` | `admin@example.com`, `admin123` | your own |
-| `reset_schedule` | `rate(1 hour)` | `""` — no reset and no example tiddlers |
-| `invite_emails` | `false` | `true` — Cognito emails the invitation |
-| `password_min_length` | `8` | `12` or more |
-| `file_max_bytes` | 10 MB | up to what you are ready to store |
 
 ## Access logs
 
@@ -170,7 +203,9 @@ The bucket is yours, in the same account: its policy has to let `delivery.logs.a
 
 | Path | What is there |
 | --- | --- |
-| `*.tf` | Terraform |
+| `*.tf` | The module: its providers (`aws`, `aws.global`), inputs and outputs |
+| `demo/` | The public demo, a call of the module, and the moves of its state |
+| `examples/production/` | A starting point for production |
 | `web/` | The page: `app.js` (interface), `wikitext.js` (markup), `i18n.js` (translations), `styles.css`, `index.html` |
 | `lambda/lambda_app.py` | API, with tests in `lambda_app_test.py` |
 | `lambda/reset.py` | Hourly demo reset, with tests in `reset_test.py` |
