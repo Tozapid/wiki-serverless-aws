@@ -34,6 +34,5 @@ resource "aws_s3_object" "config" {
     demo_email  = var.demo ? var.admin_email : ""
     demo_pass   = var.demo ? var.admin_password : ""
     reset_every = var.reset_schedule
-    help_title  = var.help_title
   })
 }

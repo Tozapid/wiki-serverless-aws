@@ -119,7 +119,6 @@ module "wiki" {
 | `domain_name`, `route53_zone_name` | `""` | The wiki's name and its public Route 53 zone; empty: the `*.cloudfront.net` address |
 | `invite_emails` | `true` | Cognito mails the invitation with the temporary password; the demo never does |
 | `file_max_bytes` | 10 MB | Largest attachment, up to what you are ready to store |
-| `help_title` | `$:/Markup` | Title of the built-in help, which the wiki opens by default |
 | `demo` | `false` | Public demo: the sign-in published and filled in, no invitation mails, the attachments go with a destroy |
 | `reset_schedule` | `""` | The hourly reset of the demo (`rate(1 hour)` there) with the example tiddlers of `seed/` |
 | `access_logs_bucket` | `""` | Bucket of the access logs (see [Access logs](#access-logs)) |

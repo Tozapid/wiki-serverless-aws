@@ -8,7 +8,7 @@
 - A wiki on its own domain: `domain_name` and `route53_zone_name` add the certificate, the alias of the distribution and the A and AAAA records; the invitation and the uploads name that address. Empty, the wiki answers at its CloudFront address, as the demo does.
 - Passwords have at least 12 characters with upper and lower case letters, a digit and a symbol, in the user pool and in the fields of the page; `password_min_length` is gone. The demo administrator signs in with `Demo-Password-1`.
 - Without a reset (`reset_schedule = ""`) none of its resources is made, the demo password in SSM included; `admin_password` empty makes Cognito mail the first user a temporary password. Apply no longer takes back a password or language the first user changed.
-- New inputs: `help_title`, the title of the built-in help (`$:/Markup`), and `files_key_from`.
+- New input `files_key_from` (see Fixed).
 - Phones: fields have 16 px text on a touch screen, so an iPhone no longer zooms into the page when one takes the focus, and a dialog fits the visible screen (`100dvh`).
 
 ### Fixed

@@ -15,13 +15,11 @@
 
   // Built-in tiddlers. A saved tiddler with the same title replaces one, and
   // deleting that tiddler brings the built-in text back, as in TiddlyWiki.
-  // The title of the built-in help comes from help_title (config.helpTitle).
-  const HELP = config.helpTitle || "$:/Markup";
   const SHADOWS = {
     "$:/SiteTitle": t("Вики"),
     "$:/SiteSubtitle": t("заметки, которые ссылаются друг на друга"),
-    "$:/DefaultTiddlers": "[[" + HELP + "]]",
-    [HELP]: I18n.help(),
+    "$:/DefaultTiddlers": "[[$:/Markup]]",
+    "$:/Markup": I18n.help(),
   };
 
   const state = {

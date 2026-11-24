@@ -51,12 +51,6 @@ variable "reset_schedule" {
   description = "When the demo is wiped back to its initial state: the tiddlers of seed/tiddlers.json come back, the administrator gets admin_password back and other users go. An empty string, the default, turns the reset off."
 }
 
-variable "help_title" {
-  type        = string
-  default     = "$:/Markup"
-  description = "Title of the built-in help tiddler, which the wiki opens by default."
-}
-
 variable "access_logs_bucket" {
   type        = string
   default     = ""
