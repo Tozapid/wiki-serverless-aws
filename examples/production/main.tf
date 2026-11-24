@@ -28,7 +28,7 @@ provider "aws" {
 }
 
 module "wiki" {
-  source = "git::https://github.com/Tozapid/wiki-serverless-aws.git?ref=v1.6.1"
+  source = "git::https://github.com/Tozapid/wiki-serverless-aws.git?ref=v1.7.0"
 
   providers = {
     aws        = aws

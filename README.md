@@ -10,7 +10,7 @@ Notes are *tiddlers*: a title, text and tags. Open tiddlers form a story river; 
 
 Sign in with `admin@example.com` / `Demo-Password-1` (the fields are filled in for you).
 
-The demo is public and wiped every hour: all tiddlers, drafts, uploaded files and users go away, and the admin password is put back. Two-factor authentication works in the demo too; the wipe turns it off for the admin, so nobody can lock the shared account for longer than an hour. A few example tiddlers — a video, a photo, a table, task lists and lorem ipsum — are written again after each wipe, so they are always there. Invitations do not send email in the demo; the temporary password is shown to the administrator instead.
+The demo is public and wiped six hours after the first change (a demo nobody changes is not wiped): all tiddlers, drafts, uploaded files and users go away, and the admin password is put back. Changing the password and two-factor authentication are hidden in the demo, so no visitor can lock the others out. A few example tiddlers — a video, a photo, a table, task lists and lorem ipsum — are written again after each wipe, so they are always there. Invitations do not send email in the demo; the temporary password is shown to the administrator instead.
 
 ## Features
 
@@ -65,7 +65,7 @@ flowchart LR
 | API | API Gateway HTTP API with a Cognito JWT authorizer, Lambda (Python, arm64) |
 | Tiddlers, history, drafts | DynamoDB on demand, one table |
 | Attachments | Private S3 bucket read through CloudFront with a one-hour signed cookie |
-| Demo reset | Lambda `reset.py`, EventBridge rule `rate(1 hour)` |
+| Demo reset | Lambda `reset.py`, a one-off EventBridge Scheduler schedule that the first change makes |
 
 ## What it costs
 
@@ -75,7 +75,7 @@ Estimate for **light use** — a handful of people, 20,000 API calls, 2,000 save
 
 | Service | Usage | Price | Per month |
 | --- | --- | --- | --- |
-| Lambda (API + 720 hourly resets) | ~21,000 invocations, 256 MB | free allowance | $0.00 |
+| Lambda (API and the resets after changes) | ~21,000 invocations, 256 MB | free allowance | $0.00 |
 | API Gateway HTTP API | 20,000 requests | ~$1.20 per million | $0.02 |
 | DynamoDB on demand | 2,000 writes, 50,000 reads, < 1 GB | ~$0.76 / $0.15 per million, storage free | $0.01 |
 | DynamoDB point-in-time recovery | < 0.1 GB | ~$0.24 per GB | < $0.01 |
@@ -95,7 +95,7 @@ The root of this repository is the module. It makes no providers: the caller pas
 
 ```hcl
 module "wiki" {
-  source = "git::https://github.com/Tozapid/wiki-serverless-aws.git?ref=v1.6.1"
+  source = "git::https://github.com/Tozapid/wiki-serverless-aws.git?ref=v1.7.0"
 
   providers = {
     aws        = aws
@@ -120,7 +120,7 @@ module "wiki" {
 | `invite_emails` | `true` | Cognito mails the invitation with the temporary password; the demo never does |
 | `file_max_bytes` | 10 MB | Largest attachment, up to what you are ready to store |
 | `demo` | `false` | Public demo: the sign-in published and filled in, no invitation mails, the attachments go with a destroy |
-| `reset_schedule` | `""` | The hourly reset of the demo (`rate(1 hour)` there) with the example tiddlers of `seed/` |
+| `reset_delay_hours` | `0` | The reset of the demo, that many hours after the first change (`6` there), with the example tiddlers of `seed/` |
 | `access_logs_bucket` | `""` | Bucket of the access logs (see [Access logs](#access-logs)) |
 | `files_key_from` | preview: its site | Stack whose CloudFront key signs the attachment cookies |
 | `releases_repository` | `Tozapid/wiki-serverless-aws` | The releases Settings → Version compares with |
@@ -131,7 +131,7 @@ An account holds at most ten CloudFront public keys. A preview (`<name>-pr<N>`) 
 
 ### The demo
 
-[`demo/`](demo) is the root module of the public demo: the module from `../` with `demo = true`, the published sign-in, no invitation mails, the hourly reset and no domain, so it answers at its CloudFront address and touches no DNS.
+[`demo/`](demo) is the root module of the public demo: the module from `../` with `demo = true`, the published sign-in, no invitation mails, the reset six hours after a change and no domain, so it answers at its CloudFront address and touches no DNS.
 
 ## Deploy
 
